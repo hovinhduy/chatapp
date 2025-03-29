@@ -134,4 +134,15 @@ public class UserController {
             return ResponseEntity.badRequest().body("Invalid old password");
         }
     }
+
+    @Operation(summary = "Find user by phone number", description = "Retrieves a user profile by their exact phone number")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Successfully retrieved user profile"),
+            @ApiResponse(responseCode = "404", description = "User not found with given phone number")
+    })
+    @GetMapping("/by-phone")
+    public ResponseEntity<UserDto> getUserByPhone(
+            @Parameter(description = "Phone number", required = true) @RequestParam String phone) {
+        return ResponseEntity.ok(userService.getUserByPhone(phone));
+    }
 }
