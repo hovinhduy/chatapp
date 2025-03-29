@@ -53,9 +53,14 @@ public class GroupService {
          */
         @Transactional
         public GroupDto createGroup(GroupDto groupDto, Long creatorId) {
+                // Kiểm tra xem có ít nhất 2 thành viên khác được thêm vào nhóm
+                if (groupDto.getMembers() == null || groupDto.getMembers().size() < 2) {
+                        throw new BadRequestException("Group must have at least 2 members besides the creator");
+                }
+
                 User creator = userRepository.findById(creatorId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "User not found with id: " + creatorId));
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "User not found with id: " + creatorId));
 
                 Group group = new Group();
                 group.setName(groupDto.getName());
@@ -69,6 +74,24 @@ public class GroupService {
                 groupMember.setUser(creator);
                 groupMember.setRole(true); // Admin role
                 groupMemberRepository.save(groupMember);
+
+                // Thêm các thành viên khác từ danh sách
+                for (GroupMemberDto memberDto : groupDto.getMembers()) {
+                        User member = userRepository.findById(memberDto.getUser().getUserId())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                        "User not found with id: " + memberDto.getUser().getUserId()));
+
+                        // Kiểm tra không trùng với người tạo
+                        if (member.getUserId().equals(creatorId)) {
+                                continue;
+                        }
+
+                        GroupMember newMember = new GroupMember();
+                        newMember.setGroup(savedGroup);
+                        newMember.setUser(member);
+                        newMember.setRole(false); // Regular member
+                        groupMemberRepository.save(newMember);
+                }
 
                 return mapToDto(savedGroup);
         }
