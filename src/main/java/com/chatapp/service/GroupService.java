@@ -59,8 +59,8 @@ public class GroupService {
                 }
 
                 User creator = userRepository.findById(creatorId)
-                        .orElseThrow(() -> new ResourceNotFoundException(
-                                "User not found with id: " + creatorId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "User not found with id: " + creatorId));
 
                 Group group = new Group();
                 group.setName(groupDto.getName());
@@ -78,8 +78,8 @@ public class GroupService {
                 // Thêm các thành viên khác từ danh sách
                 for (GroupMemberDto memberDto : groupDto.getMembers()) {
                         User member = userRepository.findById(memberDto.getUser().getUserId())
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                        "User not found with id: " + memberDto.getUser().getUserId()));
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "User not found with id: " + memberDto.getUser().getUserId()));
 
                         // Kiểm tra không trùng với người tạo
                         if (member.getUserId().equals(creatorId)) {
@@ -118,6 +118,19 @@ public class GroupService {
          */
         public List<GroupDto> getGroupsByUserId(Long userId) {
                 return groupRepository.findGroupsByUserId(userId).stream()
+                                .map(this::mapToDto)
+                                .collect(Collectors.toList());
+        }
+
+        /**
+         * Tìm kiếm các nhóm theo tên mà người dùng đang tham gia
+         * 
+         * @param userId ID của người dùng
+         * @param name   Tên nhóm cần tìm kiếm (tìm kiếm mờ, không phân biệt hoa thường)
+         * @return List<GroupDto> Danh sách các nhóm phù hợp với điều kiện tìm kiếm
+         */
+        public List<GroupDto> searchGroupsByName(Long userId, String name) {
+                return groupRepository.findGroupsByUserIdAndNameContainingIgnoreCase(userId, name).stream()
                                 .map(this::mapToDto)
                                 .collect(Collectors.toList());
         }
