@@ -213,6 +213,23 @@ public class FriendService {
     }
 
     /**
+     * Tìm kiếm bạn bè theo tên
+     * 
+     * @param userId     ID của người dùng
+     * @param searchTerm Chuỗi tìm kiếm tên
+     * @return List<FriendDto> Danh sách bạn bè phù hợp với tên tìm kiếm
+     * @throws ResourceNotFoundException Nếu không tìm thấy người dùng
+     */
+    public List<FriendDto> searchFriendsByName(Long userId, String searchTerm) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        return friendRepository.searchFriendsByName(user, searchTerm).stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Lấy danh sách lời mời kết bạn đang chờ xử lý
      * 
      * @param userId ID của người dùng
