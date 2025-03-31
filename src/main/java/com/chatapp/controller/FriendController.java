@@ -125,6 +125,17 @@ public class FriendController {
                 return ResponseEntity.ok(friendService.getPendingFriendRequests(userId));
         }
 
+        @Operation(summary = "Get sent requests", description = "Retrieves the list of sent friend requests")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Successfully retrieved sent requests")
+        })
+        @GetMapping("/sent")
+        public ResponseEntity<List<FriendDto>> getSentFriendRequests(
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                return ResponseEntity.ok(friendService.getSentFriendRequests(userId));
+        }
+
         @Operation(summary = "Search friends by name", description = "Searches friends by their display name")
         @ApiResponses(value = {
                         @ApiResponse(responseCode = "200", description = "Successfully retrieved search results")

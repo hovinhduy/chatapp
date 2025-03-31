@@ -21,6 +21,9 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
     @Query("SELECT f FROM Friend f WHERE f.user2 = :user AND f.status = 'PENDING'")
     List<Friend> findPendingFriendRequests(@Param("user") User user);
 
+    @Query("SELECT f FROM Friend f WHERE f.user1 = :user AND f.status = 'PENDING'")
+    List<Friend> findSentFriendRequests(@Param("user") User user);
+
     @Query("SELECT f FROM Friend f WHERE f.status = 'ACCEPTED' AND " +
             "((f.user1 = :user AND LOWER(f.user2.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) OR " +
             "(f.user2 = :user AND LOWER(f.user1.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))))")

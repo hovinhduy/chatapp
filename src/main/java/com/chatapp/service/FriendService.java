@@ -246,6 +246,22 @@ public class FriendService {
     }
 
     /**
+     * Lấy danh sách lời mời kết bạn đã gửi
+     * 
+     * @param userId ID của người dùng
+     * @return List<FriendDto> Danh sách lời mời kết bạn đã gửi
+     * @throws ResourceNotFoundException Nếu không tìm thấy người dùng
+     */
+    public List<FriendDto> getSentFriendRequests(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        return friendRepository.findSentFriendRequests(user).stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Chuyển đổi đối tượng Friend thành FriendDto
      * 
      * @param friend Đối tượng Friend cần chuyển đổi
