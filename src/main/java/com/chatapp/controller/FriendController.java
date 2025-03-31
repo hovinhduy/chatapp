@@ -161,4 +161,18 @@ public class FriendController {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 return ResponseEntity.ok(friendService.searchFriendsByName(userId, searchTerm));
         }
+
+        @Operation(summary = "Delete friend", description = "Deletes a friendship with another user")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Friendship deleted successfully"),
+                        @ApiResponse(responseCode = "403", description = "Not authorized to delete this friendship"),
+                        @ApiResponse(responseCode = "404", description = "Friendship not found")
+        })
+        @DeleteMapping("/{friendshipId}")
+        public ResponseEntity<FriendDto> deleteFriend(
+                        @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                return ResponseEntity.ok(friendService.deleteFriend(friendshipId, userId));
+        }
 }

@@ -291,6 +291,37 @@ public class FriendService {
     }
 
     /**
+     * Xóa kết bạn với một người dùng
+     * 
+     * @param friendshipId ID của mối quan hệ bạn bè
+     * @param userId       ID của người dùng đang thực hiện hành động
+     * @return FriendDto Thông tin về mối quan hệ bạn bè đã xóa
+     * @throws ResourceNotFoundException Nếu không tìm thấy mối quan hệ bạn bè
+     * @throws BadRequestException       Nếu người dùng không phải là một trong hai
+     *                                   người trong mối quan hệ bạn bè
+     *                                   hoặc mối quan hệ không ở trạng thái đã chấp
+     *                                   nhận
+     */
+    @Transactional
+    public FriendDto deleteFriend(Long friendshipId, Long userId) {
+        Friend friend = friendRepository.findById(friendshipId)
+                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+
+        // Check if user is one of the friends
+        if (!friend.getUser1().getUserId().equals(userId) && !friend.getUser2().getUserId().equals(userId)) {
+            throw new BadRequestException("You can only delete your own friendships");
+        }
+
+        // Check if friendship is accepted
+        if (friend.getStatus() != Friend.FriendStatus.ACCEPTED) {
+            throw new BadRequestException("Can only delete accepted friendships");
+        }
+
+        friendRepository.delete(friend);
+        return mapToDto(friend);
+    }
+
+    /**
      * Chuyển đổi đối tượng Friend thành FriendDto
      * 
      * @param friend Đối tượng Friend cần chuyển đổi
