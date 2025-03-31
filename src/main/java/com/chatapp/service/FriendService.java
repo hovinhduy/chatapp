@@ -262,6 +262,35 @@ public class FriendService {
     }
 
     /**
+     * Thu hồi lời mời kết bạn đã gửi
+     * 
+     * @param friendshipId ID của mối quan hệ bạn bè
+     * @param userId       ID của người dùng đang thực hiện hành động
+     * @return FriendDto Thông tin về lời mời kết bạn đã thu hồi
+     * @throws ResourceNotFoundException Nếu không tìm thấy mối quan hệ bạn bè
+     * @throws BadRequestException       Nếu người dùng không phải là người gửi lời
+     *                                   mời hoặc lời mời không ở trạng thái chờ
+     */
+    @Transactional
+    public FriendDto withdrawFriendRequest(Long friendshipId, Long userId) {
+        Friend friend = friendRepository.findById(friendshipId)
+                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+
+        // Check if user is the sender of the request
+        if (!friend.getUser1().getUserId().equals(userId)) {
+            throw new BadRequestException("Only the sender can withdraw the friend request");
+        }
+
+        // Check if status is PENDING
+        if (friend.getStatus() != Friend.FriendStatus.PENDING) {
+            throw new BadRequestException("Friend request is not pending");
+        }
+
+        friendRepository.delete(friend);
+        return mapToDto(friend);
+    }
+
+    /**
      * Chuyển đổi đối tượng Friend thành FriendDto
      * 
      * @param friend Đối tượng Friend cần chuyển đổi

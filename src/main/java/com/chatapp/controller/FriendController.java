@@ -136,6 +136,20 @@ public class FriendController {
                 return ResponseEntity.ok(friendService.getSentFriendRequests(userId));
         }
 
+        @Operation(summary = "Withdraw friend request", description = "Withdraws a sent friend request")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Friend request withdrawn successfully"),
+                        @ApiResponse(responseCode = "403", description = "Not authorized to withdraw this request"),
+                        @ApiResponse(responseCode = "404", description = "Friend request not found")
+        })
+        @DeleteMapping("/withdraw/{friendshipId}")
+        public ResponseEntity<FriendDto> withdrawFriendRequest(
+                        @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                return ResponseEntity.ok(friendService.withdrawFriendRequest(friendshipId, userId));
+        }
+
         @Operation(summary = "Search friends by name", description = "Searches friends by their display name")
         @ApiResponses(value = {
                         @ApiResponse(responseCode = "200", description = "Successfully retrieved search results")
