@@ -1,11 +1,13 @@
 package com.chatapp.service;
 
 import com.chatapp.dto.response.AuthResponseDto;
+import com.chatapp.enums.OtpStatus;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.RegisterDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
 import com.chatapp.exception.UnauthorizedException;
+import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,6 +28,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final UserService userService;
+    private final OtpRepository otpRepository;
 
     /**
      * Constructor để dependency injection
@@ -38,12 +41,13 @@ public class AuthService {
      */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
-            UserService userService) {
+            UserService userService, OtpRepository otpRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.userService = userService;
+        this.otpRepository = otpRepository;
     }
 
     /**
@@ -57,6 +61,14 @@ public class AuthService {
         // Check if phone already exists
         if (userRepository.existsByPhone(registerDto.getPhone())) {
             throw new ResourceAlreadyExistsException("Phone number already registered");
+        }
+        // kiểm tra email tồn tại chưa
+        if (userRepository.existsByEmail(registerDto.getEmail())) {
+            throw new ResourceAlreadyExistsException("Email already registered");
+        }
+        // kiểm tra email đã verify chưa
+        if (!otpRepository.existsByEmailAndStatus(registerDto.getEmail(), OtpStatus.VERIFIED)) {
+            throw new ResourceAlreadyExistsException("Email not verified");
         }
 
         // Create user
