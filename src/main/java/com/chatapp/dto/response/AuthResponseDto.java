@@ -1,5 +1,6 @@
-package com.chatapp.dto;
+package com.chatapp.dto.response;
 
+import com.chatapp.dto.request.UserDto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

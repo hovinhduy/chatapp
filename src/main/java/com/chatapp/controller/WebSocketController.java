@@ -1,6 +1,6 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.MessageDto;
+import com.chatapp.dto.request.MessageDto;
 import com.chatapp.service.MessageService;
 import com.chatapp.service.UserService;
 import org.springframework.messaging.handler.annotation.MessageMapping;

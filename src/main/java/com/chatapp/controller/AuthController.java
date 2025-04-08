@@ -1,8 +1,8 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.AuthResponseDto;
-import com.chatapp.dto.LoginDto;
-import com.chatapp.dto.RegisterDto;
+import com.chatapp.dto.response.AuthResponseDto;
+import com.chatapp.dto.request.LoginDto;
+import com.chatapp.dto.request.RegisterDto;
 import com.chatapp.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

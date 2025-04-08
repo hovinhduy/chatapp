@@ -1,6 +1,6 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.FriendDto;
+import com.chatapp.dto.request.FriendDto;
 import com.chatapp.service.FriendService;
 import com.chatapp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;

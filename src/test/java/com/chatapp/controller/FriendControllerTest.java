@@ -1,16 +1,13 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.FriendDto;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.FriendDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.model.Friend;
 import com.chatapp.security.JwtTokenProvider;
 import com.chatapp.service.FriendService;
 import com.chatapp.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.boot.test.mock.mockito.MockBean;

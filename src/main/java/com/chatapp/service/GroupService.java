@@ -1,8 +1,8 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.GroupDto;
-import com.chatapp.dto.GroupMemberDto;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.GroupDto;
+import com.chatapp.dto.request.GroupMemberDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.UnauthorizedException;

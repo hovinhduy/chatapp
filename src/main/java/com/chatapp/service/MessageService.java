@@ -1,11 +1,9 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.MessageDto;
-import com.chatapp.exception.BadRequestException;
+import com.chatapp.dto.request.MessageDto;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.Group;
-import com.chatapp.model.GroupMember;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.repository.GroupMemberRepository;

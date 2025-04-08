@@ -1,7 +1,7 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.ConversationDto;
-import com.chatapp.dto.MessageDto;
+import com.chatapp.dto.request.ConversationDto;
+import com.chatapp.dto.request.MessageDto;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.service.ConversationService;
@@ -29,7 +29,7 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.security.Principal;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.UserDto;
 
 @RestController
 @RequestMapping("/api/conversations")

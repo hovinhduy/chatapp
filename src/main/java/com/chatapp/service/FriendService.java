@@ -1,7 +1,7 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.FriendDto;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.FriendDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Friend;

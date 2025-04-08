@@ -1,6 +1,6 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.GroupDto;
+import com.chatapp.dto.request.GroupDto;
 import com.chatapp.service.FileStorageService;
 import com.chatapp.service.GroupService;
 import com.chatapp.service.UserService;

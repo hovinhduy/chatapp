@@ -1,6 +1,6 @@
 package com.chatapp.controller;
 
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.service.FileStorageService;
 import com.chatapp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;

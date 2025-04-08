@@ -1,8 +1,8 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.ConversationDto;
-import com.chatapp.dto.MessageDto;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.ConversationDto;
+import com.chatapp.dto.request.MessageDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Conversation;
 import com.chatapp.model.ConversationUser;
@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;

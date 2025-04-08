@@ -1,12 +1,11 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.AuthResponseDto;
-import com.chatapp.dto.LoginDto;
-import com.chatapp.dto.RegisterDto;
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.response.AuthResponseDto;
+import com.chatapp.dto.request.LoginDto;
+import com.chatapp.dto.request.RegisterDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
 import com.chatapp.exception.UnauthorizedException;
-import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -64,6 +63,9 @@ public class AuthService {
         UserDto userDto = new UserDto();
         userDto.setDisplayName(registerDto.getDisplayName());
         userDto.setPhone(registerDto.getPhone());
+        userDto.setEmail(registerDto.getEmail());
+        userDto.setGender(registerDto.getGender());
+        userDto.setDateOfBirth(registerDto.getDateOfBirth());
         userDto.setPassword(registerDto.getPassword());
 
         UserDto savedUser = userService.createUser(userDto);

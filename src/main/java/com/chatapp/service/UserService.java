@@ -1,6 +1,6 @@
 package com.chatapp.service;
 
-import com.chatapp.dto.UserDto;
+import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
@@ -42,6 +42,9 @@ public class UserService {
         user.setPhone(userDto.getPhone());
         user.setPassword(passwordEncoder.encode(userDto.getPassword()));
         user.setAvatarUrl(userDto.getAvatarUrl());
+        user.setEmail(userDto.getEmail());
+        user.setGender(userDto.getGender());
+        user.setDateOfBirth(userDto.getDateOfBirth());
 
         User savedUser = userRepository.save(user);
         return mapToDto(savedUser);
@@ -151,6 +154,10 @@ public class UserService {
         dto.setPhone(user.getPhone());
         dto.setDisplayName(user.getDisplayName());
         dto.setCreatedAt(user.getCreatedAt());
+        dto.setEmail(user.getEmail());
+        dto.setGender(user.getGender());
+        dto.setDateOfBirth(user.getDateOfBirth());
+        dto.setAvatarUrl(user.getAvatarUrl());
         return dto;
     }
 }

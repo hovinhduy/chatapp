@@ -1,4 +1,4 @@
-package com.chatapp.dto;
+package com.chatapp.dto.request;
 
 import com.chatapp.model.Conversation;
 
