@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import com.chatapp.enums.FriendStatus;
 
 import java.time.LocalDateTime;
 
@@ -33,7 +36,7 @@ public class Friend {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    public enum FriendStatus {
-        PENDING, ACCEPTED, REJECTED, BLOCKED
-    }
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
 }

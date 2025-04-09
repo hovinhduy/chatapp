@@ -1,12 +1,23 @@
 package com.chatapp.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.CreationTimestamp;
+
+import com.chatapp.enums.ConversationType;
+
 @Entity
 @Table(name = "conversations")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Conversation {
 
     @Id
@@ -22,50 +33,10 @@ public class Conversation {
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL)
     private List<Message> messages = new ArrayList<>();
 
+    @CreationTimestamp
     private LocalDateTime createdAt;
 
-    public enum ConversationType {
-        ONE_TO_ONE, GROUP
-    }
+    @Enumerated(EnumType.STRING)
+    public ConversationType conversationType;
 
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public ConversationType getType() {
-        return type;
-    }
-
-    public void setType(ConversationType type) {
-        this.type = type;
-    }
-
-    public List<ConversationUser> getConversationUsers() {
-        return conversationUsers;
-    }
-
-    public void setConversationUsers(List<ConversationUser> conversationUsers) {
-        this.conversationUsers = conversationUsers;
-    }
-
-    public List<Message> getMessages() {
-        return messages;
-    }
-
-    public void setMessages(List<Message> messages) {
-        this.messages = messages;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

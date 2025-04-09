@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.chatapp.enums.MessageType;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -37,8 +39,6 @@ public class Message {
     @Column(nullable = false)
     private MessageType type;
 
-    private String fileUrl;
-
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -46,15 +46,7 @@ public class Message {
     @JoinColumn(name = "conversation_id")
     private Conversation conversation;
 
-    public enum MessageType {
-        TEXT, IMAGE, VIDEO, DOCUMENT, EMOTION
-    }
+    @Enumerated(EnumType.STRING)
+    public MessageType messageType;
 
-    public Conversation getConversation() {
-        return conversation;
-    }
-
-    public void setConversation(Conversation conversation) {
-        this.conversation = conversation;
-    }
 }
