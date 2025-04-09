@@ -104,6 +104,7 @@ public class UserController {
         String fileUrl = fileStorageService.uploadFile(file);
 
         UserDto userDto = new UserDto();
+        userDto.setDisplayName(currentUser.getDisplayName());
         userDto.setAvatarUrl(fileUrl);
 
         return ResponseEntity.ok(userService.updateUser(id, userDto));

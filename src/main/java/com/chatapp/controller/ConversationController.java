@@ -2,6 +2,7 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.dto.request.MessageDto;
+import com.chatapp.enums.MessageType;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.service.ConversationService;
@@ -132,7 +133,7 @@ public class ConversationController {
         message.setSender(userRepository.findById(senderId).orElseThrow());
         message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
         message.setContent(messageDto.getContent());
-        message.setType(Message.MessageType.TEXT);
+        message.setType(MessageType.TEXT);
         message.setCreatedAt(LocalDateTime.now());
 
         Message savedMessage = messageRepository.save(message);
@@ -163,7 +164,7 @@ public class ConversationController {
         message.setSender(sender);
         message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
         message.setContent(messageDto.getContent());
-        message.setType(Message.MessageType.TEXT);
+        message.setType(MessageType.TEXT);
         message.setCreatedAt(LocalDateTime.now());
 
         Message savedMessage = messageRepository.save(message);
