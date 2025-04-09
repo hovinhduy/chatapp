@@ -2,6 +2,7 @@ package com.chatapp.service;
 
 import com.chatapp.dto.request.FriendDto;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.enums.FriendStatus;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Friend;
@@ -65,7 +66,7 @@ public class FriendService {
         Friend friend = new Friend();
         friend.setUser1(sender);
         friend.setUser2(receiver);
-        friend.setStatus(Friend.FriendStatus.PENDING);
+        friend.setStatus(FriendStatus.PENDING);
 
         Friend savedFriend = friendRepository.save(friend);
         return mapToDto(savedFriend);
@@ -92,11 +93,11 @@ public class FriendService {
         }
 
         // Check if status is PENDING
-        if (friend.getStatus() != Friend.FriendStatus.PENDING) {
+        if (friend.getStatus() != FriendStatus.PENDING) {
             throw new BadRequestException("Friend request is not pending");
         }
 
-        friend.setStatus(Friend.FriendStatus.ACCEPTED);
+        friend.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friend);
         return mapToDto(updatedFriend);
     }
@@ -122,7 +123,7 @@ public class FriendService {
         }
 
         // Check if status is PENDING
-        if (friend.getStatus() != Friend.FriendStatus.PENDING) {
+        if (friend.getStatus() != FriendStatus.PENDING) {
             throw new BadRequestException("Friend request is not pending");
         }
 
@@ -158,7 +159,7 @@ public class FriendService {
             friendship.setUser2(temp);
         }
 
-        friendship.setStatus(Friend.FriendStatus.BLOCKED);
+        friendship.setStatus(FriendStatus.BLOCKED);
         Friend updatedFriend = friendRepository.save(friendship);
         return mapToDto(updatedFriend);
     }
@@ -187,11 +188,11 @@ public class FriendService {
 
         // Check if the user is the one who blocked
         if (!friendship.getUser1().getUserId().equals(userId) ||
-                friendship.getStatus() != Friend.FriendStatus.BLOCKED) {
+                friendship.getStatus() != FriendStatus.BLOCKED) {
             throw new BadRequestException("You cannot unblock this user");
         }
 
-        friendship.setStatus(Friend.FriendStatus.ACCEPTED);
+        friendship.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friendship);
         return mapToDto(updatedFriend);
     }
@@ -282,7 +283,7 @@ public class FriendService {
         }
 
         // Check if status is PENDING
-        if (friend.getStatus() != Friend.FriendStatus.PENDING) {
+        if (friend.getStatus() != FriendStatus.PENDING) {
             throw new BadRequestException("Friend request is not pending");
         }
 
@@ -313,7 +314,7 @@ public class FriendService {
         }
 
         // Check if friendship is accepted
-        if (friend.getStatus() != Friend.FriendStatus.ACCEPTED) {
+        if (friend.getStatus() != FriendStatus.ACCEPTED) {
             throw new BadRequestException("Can only delete accepted friendships");
         }
 

@@ -1,6 +1,7 @@
 package com.chatapp.service;
 
 import com.chatapp.dto.request.MessageDto;
+import com.chatapp.enums.MessageType;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.Group;
@@ -72,14 +73,10 @@ public class MessageService {
         message.setSender(sender);
         message.setReceiver(receiver);
         message.setContent(messageDto.getContent());
-        message.setType(Message.MessageType.TEXT);
+        message.setType(MessageType.TEXT);
 
         if (messageDto.getType() != null) {
-            message.setType(Message.MessageType.valueOf(messageDto.getType()));
-        }
-
-        if (messageDto.getFileUrl() != null) {
-            message.setFileUrl(messageDto.getFileUrl());
+            message.setType(MessageType.valueOf(messageDto.getType()));
         }
 
         Message savedMessage = messageRepository.save(message);
@@ -113,14 +110,10 @@ public class MessageService {
         message.setSender(sender);
         message.setGroup(group);
         message.setContent(messageDto.getContent());
-        message.setType(Message.MessageType.TEXT);
+        message.setType(MessageType.TEXT);
 
         if (messageDto.getType() != null) {
-            message.setType(Message.MessageType.valueOf(messageDto.getType()));
-        }
-
-        if (messageDto.getFileUrl() != null) {
-            message.setFileUrl(messageDto.getFileUrl());
+            message.setType(MessageType.valueOf(messageDto.getType()));
         }
 
         Message savedMessage = messageRepository.save(message);
@@ -293,7 +286,6 @@ public class MessageService {
         dto.setCreatedAt(message.getCreatedAt());
 
         dto.setType(message.getType().name());
-        dto.setFileUrl(message.getFileUrl());
 
         return dto;
     }

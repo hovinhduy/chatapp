@@ -3,6 +3,7 @@ package com.chatapp.service;
 import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.dto.request.MessageDto;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.enums.ConversationType;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Conversation;
 import com.chatapp.model.ConversationUser;
@@ -56,8 +57,8 @@ public class ConversationService {
 
         Conversation conversation = new Conversation();
         conversation.setType(participantIds.size() == 1
-                ? Conversation.ConversationType.ONE_TO_ONE
-                : Conversation.ConversationType.GROUP);
+                ? ConversationType.ONE_TO_ONE
+                : ConversationType.GROUP);
         conversation.setCreatedAt(LocalDateTime.now());
 
         Conversation savedConversation = conversationRepository.save(conversation);
@@ -100,7 +101,7 @@ public class ConversationService {
 
         // Tạo cuộc trò chuyện mới
         Conversation conversation = new Conversation();
-        conversation.setType(Conversation.ConversationType.ONE_TO_ONE);
+        conversation.setType(ConversationType.ONE_TO_ONE);
         conversation.setCreatedAt(LocalDateTime.now());
 
         Conversation savedConversation = conversationRepository.save(conversation);
