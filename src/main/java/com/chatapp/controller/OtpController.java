@@ -1,5 +1,6 @@
 package com.chatapp.controller;
 
+import com.chatapp.exception.OtpRateLimitException;
 import com.chatapp.service.OtpService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,8 +14,14 @@ public class OtpController {
 
     @PostMapping("/send")
     public ResponseEntity<?> sendOtp(@RequestParam String email) {
-        otpService.sendOtp(email);
-        return ResponseEntity.ok().body("OTP đã được gửi đến email của bạn");
+        try {
+            otpService.sendOtp(email);
+            return ResponseEntity.ok().body("OTP đã được gửi đến email của bạn");
+        } catch (OtpRateLimitException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Có lỗi xảy ra khi gửi OTP: " + e.getMessage());
+        }
     }
 
     @PostMapping("/verify")

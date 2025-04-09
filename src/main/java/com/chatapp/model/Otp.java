@@ -23,6 +23,9 @@ public class Otp {
     @Column(nullable = false)
     private LocalDateTime expiryTime;
 
+    @Column
+    private LocalDateTime lastSentTime;
+
     @Enumerated(EnumType.STRING)
     private OtpStatus status;
 }
