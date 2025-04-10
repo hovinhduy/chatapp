@@ -6,13 +6,16 @@ import com.chatapp.dto.response.AuthResponseDto;
 import com.chatapp.dto.response.TokenRefreshResponse;
 import com.chatapp.enums.OtpStatus;
 import com.chatapp.enums.UserStatus;
+import com.chatapp.dto.request.ForgotPasswordRequest;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.RegisterDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
+import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.RefreshToken;
+import com.chatapp.model.User;
 import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
@@ -188,5 +191,19 @@ public class AuthService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Quên mật khẩu
+     * 
+     * @param request
+     * @return
+     */
+    public boolean forgotPassword(ForgotPasswordRequest request) {
+        User user = userRepository.findByPhone(request.getPhone())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setPassword(request.getNewPassword());
+        userRepository.save(user);
+        return true;
     }
 }

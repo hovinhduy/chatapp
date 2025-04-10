@@ -1,6 +1,7 @@
 package com.chatapp.controller;
 
 import com.chatapp.config.FirebaseConfig;
+import com.chatapp.dto.request.ForgotPasswordRequest;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.LogoutRequest;
 import com.chatapp.dto.request.RefreshTokenRequest;
@@ -179,6 +180,42 @@ public class AuthController {
                     "success", false,
                     "message", "Lỗi đăng xuất: " + e.getMessage()));
         }
+    }
+
+    @Operation(summary = "Quên mật khẩu", description = "Quên mật khẩu")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Lấy lại mật khẩu thành công"),
+            @ApiResponse(responseCode = "400", description = "Invalid request")
+    })
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        try {
+            // Xác minh token (bắt buộc phải có)
+            FirebaseToken decodedToken = firebaseConfig.verifyIdToken(request.getIdToken());
+
+            // Kiểm tra số điện thoại từ token có khớp với số trong request
+            String phoneFromToken = decodedToken.getClaims().get("phone_number").toString();
+            String phoneFromRequest = request.getPhone();
+
+            // Format số điện thoại để so sánh (đảm bảo định dạng nhất quán)
+            String formattedPhoneFromToken = formatPhoneNumber(phoneFromToken);
+            String formattedPhoneFromRequest = formatPhoneNumber(phoneFromRequest);
+
+            if (!formattedPhoneFromToken.equals(formattedPhoneFromRequest)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Số điện thoại không khớp với token xác thực"));
+            }
+            return ResponseEntity.ok(Map.of(
+                    "success", authService.forgotPassword(request),
+                    "message", "Lấy lại mật khẩu thành công"));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Lỗi quên mật khẩu: " + e.getMessage()));
+        }
+
     }
 
     /**
