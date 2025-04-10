@@ -1,5 +1,6 @@
 package com.chatapp.service;
 
+import com.chatapp.dto.request.LogoutRequest;
 import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.response.AuthResponseDto;
 import com.chatapp.dto.response.TokenRefreshResponse;
@@ -38,6 +39,7 @@ public class AuthService {
     private final UserService userService;
     private final OtpRepository otpRepository;
     private final RefreshTokenService refreshTokenService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     /**
      * Constructor để dependency injection
@@ -50,7 +52,8 @@ public class AuthService {
      */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
-            UserService userService, OtpRepository otpRepository, RefreshTokenService refreshTokenService) {
+            UserService userService, OtpRepository otpRepository, RefreshTokenService refreshTokenService,
+            TokenBlacklistService tokenBlacklistService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
@@ -58,6 +61,7 @@ public class AuthService {
         this.userService = userService;
         this.otpRepository = otpRepository;
         this.refreshTokenService = refreshTokenService;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     /**
@@ -158,5 +162,31 @@ public class AuthService {
                 })
                 .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
                         "Refresh token không tồn tại trong hệ thống"));
+    }
+
+    /**
+     * Đăng xuất người dùng và vô hiệu hóa token
+     * 
+     * @param request Đối tượng chứa access token và refresh token
+     * @return true nếu đăng xuất thành công
+     */
+    public boolean logout(LogoutRequest request) {
+        try {
+            // Thêm access token vào blacklist
+            tokenBlacklistService.blacklistToken(request.getAccessToken());
+
+            // Xóa refresh token khỏi database
+            tokenBlacklistService.deleteRefreshToken(request.getRefreshToken());
+
+            // Cập nhật trạng thái người dùng
+            String username = tokenProvider.getUsernameFromToken(request.getAccessToken());
+            UserDto userDto = userService.getUserByPhone(username);
+            userDto.setStatus(UserStatus.OFFLINE);
+            userService.updateUser(userDto.getUserId(), userDto);
+
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

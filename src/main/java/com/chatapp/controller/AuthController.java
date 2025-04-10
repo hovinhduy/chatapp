@@ -2,6 +2,7 @@ package com.chatapp.controller;
 
 import com.chatapp.config.FirebaseConfig;
 import com.chatapp.dto.request.LoginDto;
+import com.chatapp.dto.request.LogoutRequest;
 import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.TokenVerificationRequest;
@@ -149,6 +150,34 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * API đăng xuất người dùng
+     */
+    @Operation(summary = "Logout user", description = "Logs out a user and invalidates tokens")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "User logged out successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request")
+    })
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser(@Valid @RequestBody LogoutRequest request) {
+        try {
+            boolean result = authService.logout(request);
+            if (result) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "Đăng xuất thành công"));
+            } else {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "Đăng xuất thất bại"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Lỗi đăng xuất: " + e.getMessage()));
         }
     }
 

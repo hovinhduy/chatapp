@@ -64,4 +64,10 @@ public class RefreshTokenService {
         Optional<User> userOpt = userRepository.findById(userId);
         return userOpt.map(refreshTokenRepository::deleteByUser).orElse(0);
     }
+
+    @Transactional
+    public void deleteByToken(String token) {
+        refreshTokenRepository.findByToken(token)
+                .ifPresent(refreshTokenRepository::delete);
+    }
 }
