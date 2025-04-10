@@ -62,20 +62,21 @@ public class AuthService {
         if (userRepository.existsByPhone(registerDto.getPhone())) {
             throw new ResourceAlreadyExistsException("Phone number already registered");
         }
-        // kiểm tra email tồn tại chưa
-        if (userRepository.existsByEmail(registerDto.getEmail())) {
-            throw new ResourceAlreadyExistsException("Email already registered");
-        }
-        // kiểm tra email đã verify chưa
-        if (!otpRepository.existsByEmailAndStatus(registerDto.getEmail(), OtpStatus.VERIFIED)) {
-            throw new ResourceAlreadyExistsException("Email not verified");
-        }
+        // // kiểm tra email tồn tại chưa
+        // if (userRepository.existsByEmail(registerDto.getEmail())) {
+        // throw new ResourceAlreadyExistsException("Email already registered");
+        // }
+        // // kiểm tra email đã verify chưa
+        // if (!otpRepository.existsByEmailAndStatus(registerDto.getEmail(),
+        // OtpStatus.VERIFIED)) {
+        // throw new ResourceAlreadyExistsException("Email not verified");
+        // }
 
         // Create user
         UserDto userDto = new UserDto();
         userDto.setDisplayName(registerDto.getDisplayName());
         userDto.setPhone(registerDto.getPhone());
-        userDto.setEmail(registerDto.getEmail());
+        // userDto.setEmail(registerDto.getEmail());
         userDto.setGender(registerDto.getGender());
         userDto.setDateOfBirth(registerDto.getDateOfBirth());
         userDto.setPassword(registerDto.getPassword());

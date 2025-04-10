@@ -10,4 +10,9 @@ public class WebController {
     public String chatTest() {
         return "chat-test.html";
     }
+
+    @GetMapping("/test")
+    public String test() {
+        return "test.html";
+    }
 }

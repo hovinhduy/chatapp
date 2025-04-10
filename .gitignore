@@ -53,3 +53,9 @@ Thumbs.db
 
 # Bỏ qua tất cả file có đuôi .txt
 *.txt
+
+# Bỏ qua file firebase-service-account.json
+firebase-service-account.json
+
+test.html
+

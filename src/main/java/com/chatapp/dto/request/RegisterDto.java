@@ -25,9 +25,9 @@ public class RegisterDto {
     @NotBlank(message = "Mật khẩu không được để trống")
     @Size(min = 6, max = 20, message = "Mật khẩu phải có từ 6 đến 20 ký tự")
     private String password;
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không hợp lệ")
-    private String email;
+    // @NotBlank(message = "Email không được để trống")
+    // @Email(message = "Email không hợp lệ")
+    // private String email;
     @NotNull(message = "Giới tính không được để trống")
     private Gender gender;
     @NotNull(message = "Ngày sinh không được để trống")
