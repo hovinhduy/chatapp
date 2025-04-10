@@ -1,13 +1,17 @@
 package com.chatapp.service;
 
+import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.response.AuthResponseDto;
+import com.chatapp.dto.response.TokenRefreshResponse;
 import com.chatapp.enums.OtpStatus;
 import com.chatapp.enums.UserStatus;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.RegisterDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
+import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.exception.UnauthorizedException;
+import com.chatapp.model.RefreshToken;
 import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
@@ -33,6 +37,7 @@ public class AuthService {
     private final JwtTokenProvider tokenProvider;
     private final UserService userService;
     private final OtpRepository otpRepository;
+    private final RefreshTokenService refreshTokenService;
 
     /**
      * Constructor để dependency injection
@@ -45,13 +50,14 @@ public class AuthService {
      */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
-            UserService userService, OtpRepository otpRepository) {
+            UserService userService, OtpRepository otpRepository, RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.userService = userService;
         this.otpRepository = otpRepository;
+        this.refreshTokenService = refreshTokenService;
     }
 
     /**
@@ -90,7 +96,13 @@ public class AuthService {
         // Generate token
         String token = tokenProvider.generateToken(savedUser.getPhone());
 
-        return new AuthResponseDto(token, savedUser);
+        // Tạo refresh token
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser.getUserId());
+
+        AuthResponseDto authResponse = new AuthResponseDto(token, savedUser);
+        authResponse.setRefreshToken(refreshToken.getToken());
+
+        return authResponse;
     }
 
     /**
@@ -116,9 +128,35 @@ public class AuthService {
             userDto.setStatus(UserStatus.ONLINE);
             userService.updateUser(userDto.getUserId(), userDto);
 
-            return new AuthResponseDto(token, userDto);
+            // Tạo refresh token
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDto.getUserId());
+
+            AuthResponseDto authResponse = new AuthResponseDto(token, userDto);
+            authResponse.setRefreshToken(refreshToken.getToken());
+
+            return authResponse;
         } catch (Exception e) {
             throw new UnauthorizedException("Invalid phone number or password");
         }
+    }
+
+    /**
+     * Refreshes a JWT token
+     * 
+     * @param request Đối tượng chứa refresh token
+     * @return TokenRefreshResponse Đối tượng chứa access token và refresh token mới
+     */
+    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    String token = tokenProvider.generateToken(user.getPhone());
+                    return new TokenRefreshResponse(token, requestRefreshToken);
+                })
+                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
+                        "Refresh token không tồn tại trong hệ thống"));
     }
 }

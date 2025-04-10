@@ -10,11 +10,18 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuthResponseDto {
     private String accessToken;
+    private String refreshToken;
     private String tokenType = "Bearer";
     private UserDto user;
 
     public AuthResponseDto(String accessToken, UserDto user) {
         this.accessToken = accessToken;
+        this.user = user;
+    }
+
+    public AuthResponseDto(String accessToken, String refreshToken, UserDto user) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
         this.user = user;
     }
 }

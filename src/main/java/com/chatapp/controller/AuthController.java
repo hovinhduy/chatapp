@@ -2,8 +2,10 @@ package com.chatapp.controller;
 
 import com.chatapp.config.FirebaseConfig;
 import com.chatapp.dto.request.LoginDto;
+import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.TokenVerificationRequest;
+import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.service.AuthService;
 import com.chatapp.service.UserService;
 import com.google.firebase.auth.FirebaseToken;
@@ -128,6 +130,25 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", "Lỗi đăng nhập: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * API làm mới token
+     */
+    @Operation(summary = "Refresh token", description = "Refreshes the access token using a refresh token")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+            @ApiResponse(responseCode = "403", description = "Invalid refresh token")
+    })
+    @PostMapping("/refresh-token")
+    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        try {
+            return ResponseEntity.ok(authService.refreshToken(request));
+        } catch (TokenRefreshException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()));
         }
     }
 
