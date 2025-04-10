@@ -1,14 +1,21 @@
 package com.chatapp.service;
 
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.enums.Gender;
+import com.chatapp.enums.UserStatus;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.User;
 import com.chatapp.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.chatapp.dto.request.RegisterRequest;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Service class để xử lý các thao tác liên quan đến người dùng
@@ -159,5 +166,52 @@ public class UserService {
         dto.setDateOfBirth(user.getDateOfBirth());
         dto.setAvatarUrl(user.getAvatarUrl());
         return dto;
+    }
+
+    /**
+     * Phương thức đăng ký người dùng mới sau khi xác thực Firebase
+     * 
+     * @param registerRequest thông tin đăng ký người dùng
+     * @return ResponseEntity chứa thông tin phản hồi
+     */
+    public ResponseEntity<?> registerUser(RegisterRequest registerRequest) {
+        try {
+            // Kiểm tra số điện thoại đã tồn tại chưa
+            if (userRepository.existsByPhone(registerRequest.getPhone())) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "Số điện thoại đã được đăng ký");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Tạo người dùng mới
+            User newUser = new User();
+            newUser.setPhone(registerRequest.getPhone());
+            newUser.setDisplayName(registerRequest.getDisplayName());
+            newUser.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
+            newUser.setGender(Gender.valueOf(registerRequest.getGender()));
+            newUser.setDateOfBirth(registerRequest.getDateOfBirth());
+            newUser.setCreatedAt(LocalDateTime.now());
+            newUser.setUpdatedAt(LocalDateTime.now());
+            newUser.setStatus(UserStatus.OFFLINE);
+
+            // Lưu người dùng vào database
+            User savedUser = userRepository.save(newUser);
+
+            // Tạo phản hồi
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Đăng ký thành công");
+            response.put("userId", savedUser.getUserId());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Lỗi khi đăng ký: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 }

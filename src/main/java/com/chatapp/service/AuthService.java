@@ -2,6 +2,7 @@ package com.chatapp.service;
 
 import com.chatapp.dto.response.AuthResponseDto;
 import com.chatapp.enums.OtpStatus;
+import com.chatapp.enums.UserStatus;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.RegisterDto;
 import com.chatapp.dto.request.UserDto;
@@ -10,6 +11,9 @@ import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
+
+import java.time.LocalDateTime;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -108,6 +112,9 @@ public class AuthService {
 
             String token = tokenProvider.generateToken(loginDto.getPhone());
             UserDto userDto = userService.getUserByPhone(loginDto.getPhone());
+            userDto.setLastLogin(LocalDateTime.now());
+            userDto.setStatus(UserStatus.ONLINE);
+            userService.updateUser(userDto.getUserId(), userDto);
 
             return new AuthResponseDto(token, userDto);
         } catch (Exception e) {

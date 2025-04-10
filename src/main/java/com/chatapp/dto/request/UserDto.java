@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.chatapp.enums.Gender;
+import com.chatapp.enums.UserStatus;
 
 @Data
 @NoArgsConstructor
@@ -21,5 +22,7 @@ public class UserDto {
     private Gender gender;
     private LocalDate dateOfBirth;
     private String avatarUrl;
+    private LocalDateTime lastLogin;
+    private UserStatus status;
     private LocalDateTime createdAt;
 }
