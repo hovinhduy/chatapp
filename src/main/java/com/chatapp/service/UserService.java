@@ -56,7 +56,6 @@ public class UserService {
         user.setCreatedAt(LocalDateTime.now());
         user.setStatus(UserStatus.ONLINE);
 
-
         User savedUser = userRepository.save(user);
         return mapToDto(savedUser);
     }
@@ -127,7 +126,7 @@ public class UserService {
             user.setGender(userDto.getGender());
         }
         if (userDto.getDateOfBirth() != null) {
-            if (userDto.getDateOfBirth().isBefore(LocalDate.now().minusYears(14))) {
+            if (userDto.getDateOfBirth().isAfter(LocalDate.now().minusYears(14))) {
                 throw new IllegalArgumentException("Người dùng phải lớn hơn 14 tuổi");
             }
             user.setDateOfBirth(userDto.getDateOfBirth());
