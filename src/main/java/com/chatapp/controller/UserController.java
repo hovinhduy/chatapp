@@ -20,7 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
-@Tag(name = "User Management", description = "APIs for managing user profiles and settings")
+@Tag(name = "User Management", description = "Các API để quản lý hồ sơ và cài đặt người dùng")
 @SecurityRequirement(name = "bearerAuth")
 public class UserController {
 
@@ -32,10 +32,10 @@ public class UserController {
         this.fileStorageService = fileStorageService;
     }
 
-    @Operation(summary = "Get current user", description = "Retrieves the profile of the currently authenticated user")
+    @Operation(summary = "Lấy thông tin người dùng hiện tại", description = "Lấy thông tin hồ sơ của người dùng đang đăng nhập")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved user profile"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized - User not authenticated")
+            @ApiResponse(responseCode = "200", description = "Lấy thông tin hồ sơ thành công"),
+            @ApiResponse(responseCode = "401", description = "Chưa xác thực - Người dùng chưa đăng nhập")
     })
     @GetMapping("/me")
     public ResponseEntity<UserDto> getCurrentUser(
@@ -44,36 +44,36 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
-    @Operation(summary = "Get user by ID", description = "Retrieves a user profile by their ID")
+    @Operation(summary = "Lấy người dùng theo ID", description = "Lấy thông tin hồ sơ người dùng theo ID")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved user profile"),
-            @ApiResponse(responseCode = "404", description = "User not found")
+            @ApiResponse(responseCode = "200", description = "Lấy thông tin hồ sơ thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
     })
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUserById(
-            @Parameter(description = "User ID", required = true) @PathVariable Long id) {
+            @Parameter(description = "ID người dùng", required = true) @PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
     }
 
-    @Operation(summary = "Get all users", description = "Retrieves a list of all users in the system")
+    @Operation(summary = "Lấy tất cả người dùng", description = "Lấy danh sách tất cả người dùng trong hệ thống")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved user list")
+            @ApiResponse(responseCode = "200", description = "Lấy danh sách người dùng thành công")
     })
     @GetMapping
     public ResponseEntity<List<UserDto>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    @Operation(summary = "Update user", description = "Updates the profile information of a user")
+    @Operation(summary = "Cập nhật thông tin người dùng", description = "Cập nhật thông tin hồ sơ của người dùng")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully updated user profile"),
-            @ApiResponse(responseCode = "403", description = "Forbidden - User can only update their own profile"),
-            @ApiResponse(responseCode = "404", description = "User not found")
+            @ApiResponse(responseCode = "200", description = "Cập nhật hồ sơ thành công"),
+            @ApiResponse(responseCode = "403", description = "Bị cấm - Người dùng chỉ có thể cập nhật hồ sơ của chính mình"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
     })
     @PutMapping("/{id}")
     public ResponseEntity<UserDto> updateUser(
-            @Parameter(description = "User ID", required = true) @PathVariable Long id,
-            @Parameter(description = "Updated user information", required = true) @RequestBody UserDto userDto,
+            @Parameter(description = "ID người dùng", required = true) @PathVariable Long id,
+            @Parameter(description = "Thông tin người dùng cập nhật", required = true) @RequestBody UserDto userDto,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
         UserDto currentUser = userService.getUserByPhone(userDetails.getUsername());
@@ -84,16 +84,16 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, userDto));
     }
 
-    @Operation(summary = "Upload avatar", description = "Uploads a new avatar image for the user")
+    @Operation(summary = "Tải lên ảnh đại diện", description = "Tải lên ảnh đại diện mới cho người dùng")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully uploaded avatar"),
-            @ApiResponse(responseCode = "403", description = "Forbidden - User can only update their own avatar"),
-            @ApiResponse(responseCode = "400", description = "Invalid file format or size")
+            @ApiResponse(responseCode = "200", description = "Tải lên ảnh đại diện thành công"),
+            @ApiResponse(responseCode = "403", description = "Bị cấm - Người dùng chỉ có thể cập nhật ảnh đại diện của chính mình"),
+            @ApiResponse(responseCode = "400", description = "Định dạng hoặc kích thước tệp không hợp lệ")
     })
     @PostMapping("/{id}/avatar")
     public ResponseEntity<UserDto> uploadAvatar(
-            @Parameter(description = "User ID", required = true) @PathVariable Long id,
-            @Parameter(description = "Avatar image file", required = true) @RequestParam("file") MultipartFile file,
+            @Parameter(description = "ID người dùng", required = true) @PathVariable Long id,
+            @Parameter(description = "Tệp ảnh đại diện", required = true) @RequestParam("file") MultipartFile file,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) throws IOException {
 
         UserDto currentUser = userService.getUserByPhone(userDetails.getUsername());
@@ -110,17 +110,17 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, userDto));
     }
 
-    @Operation(summary = "Change password", description = "Changes the password for the current user")
+    @Operation(summary = "Đổi mật khẩu", description = "Đổi mật khẩu cho người dùng hiện tại")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully changed password"),
-            @ApiResponse(responseCode = "403", description = "Forbidden - User can only change their own password"),
-            @ApiResponse(responseCode = "400", description = "Invalid old password")
+            @ApiResponse(responseCode = "200", description = "Đổi mật khẩu thành công"),
+            @ApiResponse(responseCode = "403", description = "Bị cấm - Người dùng chỉ có thể đổi mật khẩu của chính mình"),
+            @ApiResponse(responseCode = "400", description = "Mật khẩu cũ không đúng")
     })
     @PostMapping("/{id}/change-password")
     public ResponseEntity<?> changePassword(
-            @Parameter(description = "User ID", required = true) @PathVariable Long id,
-            @Parameter(description = "Current password", required = true) @RequestParam String oldPassword,
-            @Parameter(description = "New password", required = true) @RequestParam String newPassword,
+            @Parameter(description = "ID người dùng", required = true) @PathVariable Long id,
+            @Parameter(description = "Mật khẩu hiện tại", required = true) @RequestParam String oldPassword,
+            @Parameter(description = "Mật khẩu mới", required = true) @RequestParam String newPassword,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
         UserDto currentUser = userService.getUserByPhone(userDetails.getUsername());
@@ -136,14 +136,14 @@ public class UserController {
         }
     }
 
-    @Operation(summary = "Find user by phone number", description = "Retrieves a user profile by their exact phone number")
+    @Operation(summary = "Tìm người dùng theo số điện thoại", description = "Lấy thông tin hồ sơ người dùng theo số điện thoại chính xác")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved user profile"),
-            @ApiResponse(responseCode = "404", description = "User not found with given phone number")
+            @ApiResponse(responseCode = "200", description = "Lấy thông tin hồ sơ thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng với số điện thoại đã cho")
     })
     @GetMapping("/by-phone")
     public ResponseEntity<UserDto> getUserByPhone(
-            @Parameter(description = "Phone number", required = true) @RequestParam String phone) {
+            @Parameter(description = "Số điện thoại", required = true) @RequestParam String phone) {
         return ResponseEntity.ok(userService.getUserByPhone(phone));
     }
 }

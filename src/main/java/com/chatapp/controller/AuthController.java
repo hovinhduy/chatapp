@@ -30,7 +30,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Authentication", description = "APIs for authentication")
+@Tag(name = "Authentication", description = "Các API dùng cho việc xác thực người dùng")
 public class AuthController {
 
     @Autowired
@@ -46,10 +46,10 @@ public class AuthController {
      * API xác minh token từ Firebase
      * Được gọi sau khi client đã xác thực thành công với Firebase
      */
-    @Operation(summary = "Verify Firebase token", description = "Verifies the Firebase token")
+    @Operation(summary = "Xác minh token Firebase", description = "Xác minh token từ Firebase")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Token verified successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid token")
+            @ApiResponse(responseCode = "200", description = "Xác minh token thành công"),
+            @ApiResponse(responseCode = "400", description = "Token không hợp lệ")
     })
     @PostMapping("/verify-token")
     public ResponseEntity<?> verifyFirebaseToken(@RequestBody TokenVerificationRequest request) {
@@ -81,10 +81,10 @@ public class AuthController {
      * API đăng ký người dùng mới
      * Yêu cầu token đã được xác thực từ Firebase
      */
-    @Operation(summary = "Register user", description = "Registers a new user")
+    @Operation(summary = "Đăng ký người dùng", description = "Đăng ký người dùng mới")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User registered successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid request")
+            @ApiResponse(responseCode = "200", description = "Đăng ký người dùng thành công"),
+            @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
@@ -119,10 +119,10 @@ public class AuthController {
     /**
      * API đăng nhập người dùng
      */
-    @Operation(summary = "Login user", description = "Logs in a user")
+    @Operation(summary = "Đăng nhập người dùng", description = "Đăng nhập người dùng vào hệ thống")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User logged in successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid request")
+            @ApiResponse(responseCode = "200", description = "Đăng nhập thành công"),
+            @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginDto loginRequest) {
@@ -138,10 +138,10 @@ public class AuthController {
     /**
      * API làm mới token
      */
-    @Operation(summary = "Refresh token", description = "Refreshes the access token using a refresh token")
+    @Operation(summary = "Làm mới token", description = "Làm mới access token bằng refresh token")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
-            @ApiResponse(responseCode = "403", description = "Invalid refresh token")
+            @ApiResponse(responseCode = "200", description = "Làm mới token thành công"),
+            @ApiResponse(responseCode = "403", description = "Refresh token không hợp lệ")
     })
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
@@ -157,10 +157,10 @@ public class AuthController {
     /**
      * API đăng xuất người dùng
      */
-    @Operation(summary = "Logout user", description = "Logs out a user and invalidates tokens")
+    @Operation(summary = "Đăng xuất người dùng", description = "Đăng xuất người dùng và vô hiệu hóa token")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "User logged out successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid request")
+            @ApiResponse(responseCode = "200", description = "Đăng xuất thành công"),
+            @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/logout")
     public ResponseEntity<?> logoutUser(@Valid @RequestBody LogoutRequest request) {
@@ -185,7 +185,7 @@ public class AuthController {
     @Operation(summary = "Quên mật khẩu", description = "Quên mật khẩu")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Lấy lại mật khẩu thành công"),
-            @ApiResponse(responseCode = "400", description = "Invalid request")
+            @ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
