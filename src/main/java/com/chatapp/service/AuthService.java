@@ -4,11 +4,11 @@ import com.chatapp.dto.request.LogoutRequest;
 import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.response.AuthResponseDto;
 import com.chatapp.dto.response.TokenRefreshResponse;
-import com.chatapp.enums.OtpStatus;
+import com.chatapp.enums.Gender;
 import com.chatapp.enums.UserStatus;
 import com.chatapp.dto.request.ForgotPasswordRequest;
 import com.chatapp.dto.request.LoginDto;
-import com.chatapp.dto.request.RegisterDto;
+import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
 import com.chatapp.exception.ResourceNotFoundException;
@@ -20,6 +20,7 @@ import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.security.authentication.AuthenticationManager;
@@ -74,9 +75,9 @@ public class AuthService {
      * @return AuthResponseDto Đối tượng chứa token và thông tin người dùng
      * @throws ResourceAlreadyExistsException Nếu số điện thoại đã được đăng ký
      */
-    public AuthResponseDto register(RegisterDto registerDto) {
+    public AuthResponseDto register(RegisterRequest registerRequest) {
         // Check if phone already exists
-        if (userRepository.existsByPhone(registerDto.getPhone())) {
+        if (userRepository.existsByPhone(registerRequest.getPhone())) {
             throw new ResourceAlreadyExistsException("Phone number already registered");
         }
         // // kiểm tra email tồn tại chưa
@@ -91,12 +92,19 @@ public class AuthService {
 
         // Create user
         UserDto userDto = new UserDto();
-        userDto.setDisplayName(registerDto.getDisplayName());
-        userDto.setPhone(registerDto.getPhone());
+        userDto.setDisplayName(registerRequest.getDisplayName());
+        userDto.setPhone(registerRequest.getPhone());
         // userDto.setEmail(registerDto.getEmail());
-        userDto.setGender(registerDto.getGender());
-        userDto.setDateOfBirth(registerDto.getDateOfBirth());
-        userDto.setPassword(registerDto.getPassword());
+        userDto.setGender(Gender.valueOf(registerRequest.getGender()));
+        if (registerRequest.getDateOfBirth() != null) {
+            if (registerRequest.getDateOfBirth().isAfter(LocalDate.now().minusYears(14))) {
+                throw new IllegalArgumentException("Người dùng phải lớn hơn 14 tuổi");
+            }
+            userDto.setDateOfBirth(registerRequest.getDateOfBirth());
+        }
+        userDto.setPassword(registerRequest.getPassword());
+        userDto.setCreatedAt(LocalDateTime.now());
+        userDto.setStatus(UserStatus.ONLINE);
 
         UserDto savedUser = userService.createUser(userDto);
 
@@ -202,7 +210,7 @@ public class AuthService {
     public boolean forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByPhone(request.getPhone())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        user.setPassword(request.getNewPassword());
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
         return true;
     }

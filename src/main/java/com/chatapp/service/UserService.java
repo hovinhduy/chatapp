@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +53,9 @@ public class UserService {
         user.setEmail(userDto.getEmail());
         user.setGender(userDto.getGender());
         user.setDateOfBirth(userDto.getDateOfBirth());
+        user.setCreatedAt(LocalDateTime.now());
+        user.setStatus(UserStatus.ONLINE);
+
 
         User savedUser = userRepository.save(user);
         return mapToDto(savedUser);
@@ -106,10 +110,31 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
-        user.setDisplayName(userDto.getDisplayName());
+        // Cập nhật thông tin cơ bản
+        if (userDto.getDisplayName() != null) {
+            if (userDto.getDisplayName().length() < 2 || userDto.getDisplayName().length() > 40) {
+                throw new IllegalArgumentException("Tên hiển thị phải có từ 2 đến 40 ký tự");
+            }
+            user.setDisplayName(userDto.getDisplayName());
+        }
         if (userDto.getAvatarUrl() != null) {
             user.setAvatarUrl(userDto.getAvatarUrl());
         }
+        if (userDto.getEmail() != null) {
+            user.setEmail(userDto.getEmail());
+        }
+        if (userDto.getGender() != null) {
+            user.setGender(userDto.getGender());
+        }
+        if (userDto.getDateOfBirth() != null) {
+            if (userDto.getDateOfBirth().isBefore(LocalDate.now().minusYears(14))) {
+                throw new IllegalArgumentException("Người dùng phải lớn hơn 14 tuổi");
+            }
+            user.setDateOfBirth(userDto.getDateOfBirth());
+        }
+
+        // Cập nhật thời gian chỉnh sửa
+        user.setUpdatedAt(LocalDateTime.now());
 
         User updatedUser = userRepository.save(user);
         return mapToDto(updatedUser);
@@ -142,6 +167,12 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
 
         if (passwordEncoder.matches(oldPassword, user.getPassword())) {
+            if (newPassword.length() < 6 || newPassword.length() > 20) {
+                throw new IllegalArgumentException("Mật khẩu phải có từ 6 đến 20 ký tự");
+            }
+            if (!newPassword.matches("^(?=.*[A-Za-z])(?=.*[^A-Za-z0-9]).+$")) {
+                throw new IllegalArgumentException("Mật khẩu phải có chữ và kí tự đặt biệt");
+            }
             user.setPassword(passwordEncoder.encode(newPassword));
             userRepository.save(user);
             return true;
@@ -165,12 +196,13 @@ public class UserService {
         dto.setGender(user.getGender());
         dto.setDateOfBirth(user.getDateOfBirth());
         dto.setAvatarUrl(user.getAvatarUrl());
+        dto.setUpdatedAt(user.getUpdatedAt());
         return dto;
     }
 
     /**
      * Phương thức đăng ký người dùng mới sau khi xác thực Firebase
-     * 
+     *
      * @param registerRequest thông tin đăng ký người dùng
      * @return ResponseEntity chứa thông tin phản hồi
      */
@@ -190,7 +222,12 @@ public class UserService {
             newUser.setDisplayName(registerRequest.getDisplayName());
             newUser.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
             newUser.setGender(Gender.valueOf(registerRequest.getGender()));
-            newUser.setDateOfBirth(registerRequest.getDateOfBirth());
+            if (registerRequest.getDateOfBirth() != null) {
+                if (registerRequest.getDateOfBirth().isAfter(LocalDate.now().minusYears(14))) {
+                    throw new IllegalArgumentException("Người dùng phải lớn hơn 14 tuổi");
+                }
+                newUser.setDateOfBirth(registerRequest.getDateOfBirth());
+            }
             newUser.setCreatedAt(LocalDateTime.now());
             newUser.setUpdatedAt(LocalDateTime.now());
             newUser.setStatus(UserStatus.OFFLINE);

@@ -25,4 +25,5 @@ public class UserDto {
     private LocalDateTime lastLogin;
     private UserStatus status;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

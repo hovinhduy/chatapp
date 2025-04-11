@@ -21,4 +21,5 @@ public class UserReponseLogin {
     private String avatar;
     private UserStatus status;
     private LocalDateTime lastLogin;
+    private LocalDateTime updatedAt;
 }

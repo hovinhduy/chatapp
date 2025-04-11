@@ -2,6 +2,7 @@ package com.chatapp.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -29,11 +30,13 @@ public class RegisterRequest {
 
     @NotBlank(message = "Mật khẩu không được để trống")
     @Size(min = 6, max = 20, message = "Mật khẩu phải từ 6 đến 20 ký tự")
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*[^A-Za-z0-9]).+$", message = "Mật khẩu phải có chữ và kí tự đặt biệt")
     private String password;
 
-    @NotNull(message = "Giới tính không được để trống")
+    @NotBlank(message = "Giới tính không được để trống")
     private String gender;
 
     @NotNull(message = "Ngày sinh không được để trống")
+    @Past(message = "Ngày sinh phải là ngày trong quá khứ")
     private LocalDate dateOfBirth;
 }

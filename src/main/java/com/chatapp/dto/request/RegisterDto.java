@@ -24,6 +24,7 @@ public class RegisterDto {
     private String phone;
     @NotBlank(message = "Mật khẩu không được để trống")
     @Size(min = 6, max = 20, message = "Mật khẩu phải có từ 6 đến 20 ký tự")
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*[^A-Za-z0-9\\s])\\S+$", message = "Mật khẩu phải có chữ và kí tự đặt biệt")
     private String password;
     // @NotBlank(message = "Email không được để trống")
     // @Email(message = "Email không hợp lệ")

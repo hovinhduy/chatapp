@@ -107,7 +107,7 @@ public class AuthController {
             }
 
             // Đăng ký người dùng mới
-            return userService.registerUser(registerRequest);
+            return ResponseEntity.ok(authService.register(registerRequest));
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
