@@ -69,7 +69,7 @@ public class UserService {
      */
     public UserDto getUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + id));
         return mapToDto(user);
     }
 
@@ -82,7 +82,8 @@ public class UserService {
      */
     public UserDto getUserByPhone(String phone) {
         User user = userRepository.findByPhone(phone)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with phone: " + phone));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy người dùng với số điện thoại: " + phone));
         return mapToDto(user);
     }
 
@@ -107,7 +108,7 @@ public class UserService {
      */
     public UserDto updateUser(Long id, UserDto userDto) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + id));
 
         // Cập nhật thông tin cơ bản
         if (userDto.getDisplayName() != null) {
@@ -147,7 +148,7 @@ public class UserService {
      */
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + id));
         userRepository.delete(user);
     }
 
@@ -163,7 +164,7 @@ public class UserService {
      */
     public boolean changePassword(Long id, String oldPassword, String newPassword) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + id));
 
         if (passwordEncoder.matches(oldPassword, user.getPassword())) {
             if (newPassword.length() < 6 || newPassword.length() > 20) {
