@@ -71,7 +71,7 @@ public class AuthService {
     /**
      * Đăng ký người dùng mới
      * 
-     * @param registerDto Đối tượng chứa thông tin đăng ký
+     * @param registerRequest Đối tượng chứa thông tin đăng ký
      * @return AuthResponseDto Đối tượng chứa token và thông tin người dùng
      * @throws ResourceAlreadyExistsException Nếu số điện thoại đã được đăng ký
      */

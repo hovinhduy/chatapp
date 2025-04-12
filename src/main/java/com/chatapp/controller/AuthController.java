@@ -1,6 +1,7 @@
 package com.chatapp.controller;
 
 import com.chatapp.config.FirebaseConfig;
+import com.chatapp.dto.request.CheckPhoneRequest;
 import com.chatapp.dto.request.ForgotPasswordRequest;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.LogoutRequest;
@@ -11,12 +12,14 @@ import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.service.AuthService;
 import com.chatapp.service.UserService;
+import com.chatapp.repository.UserRepository;
 import com.google.firebase.auth.FirebaseToken;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,6 +44,9 @@ public class AuthController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     /**
      * API xác minh token từ Firebase
@@ -141,8 +147,12 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginDto loginRequest) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginDto loginRequest, HttpServletRequest request) {
         try {
+            String userAgent = request.getHeader("User-Agent");
+            // Ví dụ: ghi log thông tin User-Agent, bạn có thể chuyển thông tin này đến
+            // authService hoặc lưu vào DB
+            System.out.println("User-Agent: " + userAgent);
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(true);
             response.setMessage("Đăng nhập thành công");
@@ -257,6 +267,30 @@ public class AuthController {
 
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    /**
+     * API kiểm tra số điện thoại tồn tại
+     */
+    @Operation(summary = "Kiểm tra số điện thoại", description = "Kiểm tra số điện thoại đã tồn tại trong hệ thống hay chưa")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Kiểm tra thành công")
+    })
+    @PostMapping("/check-phone")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkPhoneExists(
+            @Valid @RequestBody CheckPhoneRequest request) {
+        boolean exists = userRepository.existsByPhone(request.getPhone());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("exists", exists);
+        data.put("phone", request.getPhone());
+
+        ApiResponse<Map<String, Object>> response = new ApiResponse<>();
+        response.setSuccess(true);
+        response.setMessage("Kiểm tra số điện thoại thành công");
+        response.setPayload(data);
+
+        return ResponseEntity.ok(response);
     }
 
     /**
