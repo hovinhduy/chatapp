@@ -78,16 +78,16 @@ public class AuthService {
     public AuthResponseDto register(RegisterRequest registerRequest) {
         // Check if phone already exists
         if (userRepository.existsByPhone(registerRequest.getPhone())) {
-            throw new ResourceAlreadyExistsException("Phone number already registered");
+            throw new ResourceAlreadyExistsException("Số điện thoại đã được đăng ký");
         }
         // // kiểm tra email tồn tại chưa
         // if (userRepository.existsByEmail(registerDto.getEmail())) {
-        // throw new ResourceAlreadyExistsException("Email already registered");
+        // throw new ResourceAlreadyExistsException("Email đã được đăng ký");
         // }
         // // kiểm tra email đã verify chưa
         // if (!otpRepository.existsByEmailAndStatus(registerDto.getEmail(),
         // OtpStatus.VERIFIED)) {
-        // throw new ResourceAlreadyExistsException("Email not verified");
+        // throw new ResourceAlreadyExistsException("Email chưa được xác thực");
         // }
 
         // Create user
@@ -130,28 +130,40 @@ public class AuthService {
      */
     public AuthResponseDto login(LoginDto loginDto) {
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            loginDto.getPhone(),
-                            loginDto.getPassword()));
+            // Kiểm tra xem số điện thoại có tồn tại không
+            if (!userRepository.existsByPhone(loginDto.getPhone())) {
+                throw new UnauthorizedException("Số điện thoại không tồn tại");
+            }
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            try {
+                Authentication authentication = authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                loginDto.getPhone(),
+                                loginDto.getPassword()));
 
-            String token = tokenProvider.generateToken(loginDto.getPhone());
-            UserDto userDto = userService.getUserByPhone(loginDto.getPhone());
-            userDto.setLastLogin(LocalDateTime.now());
-            userDto.setStatus(UserStatus.ONLINE);
-            userService.updateUser(userDto.getUserId(), userDto);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            // Tạo refresh token
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDto.getUserId());
+                String token = tokenProvider.generateToken(loginDto.getPhone());
+                UserDto userDto = userService.getUserByPhone(loginDto.getPhone());
+                userDto.setLastLogin(LocalDateTime.now());
+                userDto.setStatus(UserStatus.ONLINE);
+                userService.updateUser(userDto.getUserId(), userDto);
 
-            AuthResponseDto authResponse = new AuthResponseDto(token, userDto);
-            authResponse.setRefreshToken(refreshToken.getToken());
+                // Tạo refresh token
+                RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDto.getUserId());
 
-            return authResponse;
+                AuthResponseDto authResponse = new AuthResponseDto(token, userDto);
+                authResponse.setRefreshToken(refreshToken.getToken());
+
+                return authResponse;
+            } catch (Exception e) {
+                // Nếu số điện thoại tồn tại nhưng xác thực thất bại, thì lỗi là do sai mật khẩu
+                throw new UnauthorizedException("Mật khẩu không chính xác");
+            }
+        } catch (UnauthorizedException e) {
+            throw e;
         } catch (Exception e) {
-            throw new UnauthorizedException("Invalid phone number or password");
+            throw new UnauthorizedException("Có lỗi trong quá trình đăng nhập");
         }
     }
 
@@ -209,7 +221,7 @@ public class AuthService {
      */
     public boolean forgotPassword(ForgotPasswordRequest request) {
         User user = userRepository.findByPhone(request.getPhone())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
         return true;
