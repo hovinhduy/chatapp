@@ -10,6 +10,7 @@ import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.TokenVerificationRequest;
 import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.exception.TokenRefreshException;
+import com.chatapp.model.DeviceSession;
 import com.chatapp.service.AuthService;
 import com.chatapp.service.UserService;
 import com.chatapp.repository.UserRepository;
@@ -22,6 +23,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -156,7 +162,7 @@ public class AuthController {
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(true);
             response.setMessage("Đăng nhập thành công");
-            response.setPayload(authService.login(loginRequest));
+            response.setPayload(authService.login(loginRequest, request));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -203,8 +209,17 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Object>> logoutUser(@Valid @RequestBody LogoutRequest request) {
+    public ResponseEntity<ApiResponse<Object>> logoutUser(@Valid @RequestBody LogoutRequest request,
+            HttpServletRequest httpRequest) {
         try {
+            // Nếu deviceId không được cung cấp trong request, lấy từ header
+            if (request.getDeviceId() == null || request.getDeviceId().isEmpty()) {
+                String deviceIdFromHeader = httpRequest.getHeader("X-Device-ID");
+                if (deviceIdFromHeader != null && !deviceIdFromHeader.isEmpty()) {
+                    request.setDeviceId(deviceIdFromHeader);
+                }
+            }
+
             boolean result = authService.logout(request);
             ApiResponse<Object> response = new ApiResponse<>();
 
@@ -253,25 +268,28 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(response);
             }
 
+            // Cập nhật mật khẩu
             boolean result = authService.forgotPassword(request);
             ApiResponse<Object> response = new ApiResponse<>();
-            response.setSuccess(result);
-            response.setMessage("Lấy lại mật khẩu thành công");
 
-            return ResponseEntity.ok(response);
-
+            if (result) {
+                response.setSuccess(true);
+                response.setMessage("Lấy lại mật khẩu thành công");
+                return ResponseEntity.ok(response);
+            } else {
+                response.setSuccess(false);
+                response.setMessage("Lấy lại mật khẩu thất bại");
+                return ResponseEntity.badRequest().body(response);
+            }
         } catch (Exception e) {
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(false);
-            response.setMessage("Lỗi quên mật khẩu: " + e.getMessage());
+            response.setMessage("Lỗi: " + e.getMessage());
 
             return ResponseEntity.badRequest().body(response);
         }
     }
 
-    /**
-     * API kiểm tra số điện thoại tồn tại
-     */
     @Operation(summary = "Kiểm tra số điện thoại", description = "Kiểm tra số điện thoại đã tồn tại trong hệ thống hay chưa")
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Kiểm tra thành công")
@@ -280,30 +298,174 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkPhoneExists(
             @Valid @RequestBody CheckPhoneRequest request) {
         boolean exists = userRepository.existsByPhone(request.getPhone());
-
         Map<String, Object> data = new HashMap<>();
         data.put("exists", exists);
-        data.put("phone", request.getPhone());
 
         ApiResponse<Map<String, Object>> response = new ApiResponse<>();
         response.setSuccess(true);
-        response.setMessage("Kiểm tra số điện thoại thành công");
+        response.setMessage("Kiểm tra thành công");
         response.setPayload(data);
 
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Format số điện thoại để đảm bảo nhất quán khi so sánh
-     * Ví dụ: chuyển "+84912345678" thành "0912345678"
+     * API lấy danh sách thiết bị đang đăng nhập
      */
-    private String formatPhoneNumber(String phone) {
-        if (phone == null)
-            return "";
+    @Operation(summary = "Lấy danh sách thiết bị đang đăng nhập", description = "Lấy danh sách thiết bị đang đăng nhập của người dùng hiện tại")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
+    })
+    @GetMapping("/devices/active")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<DeviceSession>>> getActiveDevices(HttpServletRequest request) {
+        try {
+            // Lấy userId từ token xác thực
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            String phone = authService.getUsernameFromToken(token);
+            Long userId = userService.getUserByPhone(phone).getUserId();
 
-        if (phone.startsWith("+84")) {
-            return "0" + phone.substring(3);
+            List<DeviceSession> devices = authService.getActiveDevices(userId);
+
+            ApiResponse<List<DeviceSession>> response = new ApiResponse<>();
+            response.setSuccess(true);
+            response.setMessage("Lấy danh sách thiết bị thành công");
+            response.setPayload(devices);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<List<DeviceSession>> response = new ApiResponse<>();
+            response.setSuccess(false);
+            response.setMessage("Lỗi khi lấy danh sách thiết bị: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    /**
+     * API lấy lịch sử đăng nhập
+     */
+    @Operation(summary = "Lấy lịch sử đăng nhập", description = "Lấy lịch sử đăng nhập của người dùng hiện tại")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy lịch sử thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
+    })
+    @GetMapping("/devices/history")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<DeviceSession>>> getLoginHistory(HttpServletRequest request) {
+        try {
+            // Lấy userId từ token xác thực
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            String phone = authService.getUsernameFromToken(token);
+            Long userId = userService.getUserByPhone(phone).getUserId();
+
+            List<DeviceSession> history = authService.getLoginHistory(userId);
+
+            ApiResponse<List<DeviceSession>> response = new ApiResponse<>();
+            response.setSuccess(true);
+            response.setMessage("Lấy lịch sử đăng nhập thành công");
+            response.setPayload(history);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<List<DeviceSession>> response = new ApiResponse<>();
+            response.setSuccess(false);
+            response.setMessage("Lỗi khi lấy lịch sử đăng nhập: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    /**
+     * API đăng xuất thiết bị cụ thể
+     */
+    @Operation(summary = "Đăng xuất thiết bị", description = "Đăng xuất khỏi một thiết bị cụ thể")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đăng xuất thiết bị thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
+    })
+    @DeleteMapping("/devices/{deviceId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Object>> logoutDevice(
+            @PathVariable String deviceId,
+            HttpServletRequest request) {
+        try {
+            // Lấy userId từ token xác thực
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            String phone = authService.getUsernameFromToken(token);
+            Long userId = userService.getUserByPhone(phone).getUserId();
+
+            boolean result = authService.logoutDevice(userId, deviceId);
+
+            ApiResponse<Object> response = new ApiResponse<>();
+            if (result) {
+                response.setSuccess(true);
+                response.setMessage("Đăng xuất thiết bị thành công");
+            } else {
+                response.setSuccess(false);
+                response.setMessage("Đăng xuất thiết bị thất bại");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<Object> response = new ApiResponse<>();
+            response.setSuccess(false);
+            response.setMessage("Lỗi khi đăng xuất thiết bị: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    /**
+     * API đăng xuất tất cả thiết bị
+     */
+    @Operation(summary = "Đăng xuất tất cả thiết bị", description = "Đăng xuất khỏi tất cả thiết bị của người dùng hiện tại")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đăng xuất tất cả thiết bị thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
+    })
+    @DeleteMapping("/devices")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Object>> logoutAllDevices(HttpServletRequest request) {
+        try {
+            // Lấy userId từ token xác thực
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            String phone = authService.getUsernameFromToken(token);
+            Long userId = userService.getUserByPhone(phone).getUserId();
+
+            authService.logoutAllDevices(userId);
+
+            ApiResponse<Object> response = new ApiResponse<>();
+            response.setSuccess(true);
+            response.setMessage("Đăng xuất tất cả thiết bị thành công");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            ApiResponse<Object> response = new ApiResponse<>();
+            response.setSuccess(false);
+            response.setMessage("Lỗi khi đăng xuất tất cả thiết bị: " + e.getMessage());
+
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    private String formatPhoneNumber(String phone) {
+        // Xóa bỏ các ký tự không phải số
+        String numbersOnly = phone.replaceAll("[^0-9]", "");
+
+        // Nếu số bắt đầu bằng 0, thêm mã quốc gia +84
+        if (numbersOnly.startsWith("0")) {
+            return "+84" + numbersOnly.substring(1);
+        }
+
+        // Nếu số đã có mã quốc gia, thêm dấu +
+        if (!numbersOnly.startsWith("+")) {
+            return "+" + numbersOnly;
+        }
+
         return phone;
     }
 }

@@ -34,9 +34,9 @@ public class TokenBlacklistService {
     }
 
     /**
-     * Thêm access token vào blacklist
+     * Thêm token vào blacklist
      * 
-     * @param token Access token cần thêm vào blacklist
+     * @param token Token cần thêm vào blacklist
      */
     public void blacklistToken(String token) {
         try {
@@ -44,9 +44,15 @@ public class TokenBlacklistService {
                 BlacklistedToken blacklistedToken = new BlacklistedToken();
                 blacklistedToken.setToken(token);
 
-                // Lấy thời gian hết hạn từ token
-                Date expiryDate = jwtTokenProvider.getExpirationDateFromToken(token);
-                blacklistedToken.setExpiryDate(expiryDate.toInstant());
+                // Thử lấy thời gian hết hạn từ JWT token
+                try {
+                    Date expiryDate = jwtTokenProvider.getExpirationDateFromToken(token);
+                    blacklistedToken.setExpiryDate(expiryDate.toInstant());
+                } catch (Exception e) {
+                    // Nếu không phải là JWT token, có thể là refresh token
+                    // Đặt thời gian hết hạn là 30 ngày từ hiện tại
+                    blacklistedToken.setExpiryDate(Instant.now().plusSeconds(30 * 24 * 60 * 60));
+                }
 
                 blacklistedTokenRepository.save(blacklistedToken);
             }
@@ -62,6 +68,9 @@ public class TokenBlacklistService {
      */
     public void deleteRefreshToken(String token) {
         try {
+            // Thêm token vào blacklist trước khi xóa
+            blacklistToken(token);
+            // Sau đó xóa khỏi database
             refreshTokenService.deleteByToken(token);
         } catch (Exception e) {
             // Không tìm thấy token hoặc lỗi xảy ra

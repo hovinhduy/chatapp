@@ -11,26 +11,37 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "refresh_tokens")
-public class RefreshToken {
+@Table(name = "device_sessions")
+public class DeviceSession {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false, unique = true)
-    private String token;
-
-    @Column(nullable = false)
-    private Instant expiryDate;
 
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "userId")
     private User user;
 
-    @Column(name = "device_id")
+    @Column(nullable = false)
     private String deviceId;
 
-    @Column(name = "device_type")
+    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private DeviceSession.DeviceType deviceType;
+    private DeviceType deviceType;
+
+    @Column(nullable = false)
+    private String deviceInfo;
+
+    @Column(nullable = false)
+    private Instant loginTime;
+
+    @Column
+    private Instant logoutTime;
+
+    @Column(nullable = false)
+    private boolean active;
+
+    public enum DeviceType {
+        WEB,
+        MOBILE
+    }
 }
