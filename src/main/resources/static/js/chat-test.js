@@ -164,9 +164,10 @@ async function fetchFriends() {
         Authorization: `Bearer ${token}`,
       },
     });
+    const data = await response.json();
 
     if (response.ok) {
-      const friends = await response.json();
+      const friends = data.payload;
       displayFriends(friends);
     }
   } catch (error) {
