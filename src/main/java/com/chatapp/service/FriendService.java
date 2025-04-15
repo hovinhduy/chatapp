@@ -49,18 +49,18 @@ public class FriendService {
     @Transactional
     public FriendDto sendFriendRequest(Long senderId, Long receiverId) {
         if (senderId.equals(receiverId)) {
-            throw new BadRequestException("Cannot send friend request to yourself");
+            throw new BadRequestException("Không thể gửi lời mời kết bạn cho chính mình");
         }
 
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sender not found with id: " + senderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi với id: " + senderId));
 
         User receiver = userRepository.findById(receiverId)
-                .orElseThrow(() -> new ResourceNotFoundException("Receiver not found with id: " + receiverId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người nhận với id: " + receiverId));
 
-        // Check if friendship already exists
+        // Kiểm tra xem mối quan hệ bạn bè đã tồn tại chưa
         if (friendRepository.findByUsers(sender, receiver).isPresent()) {
-            throw new BadRequestException("Friendship already exists");
+            throw new BadRequestException("Mối quan hệ bạn bè đã tồn tại");
         }
 
         Friend friend = new Friend();
@@ -85,16 +85,17 @@ public class FriendService {
     @Transactional
     public FriendDto acceptFriendRequest(Long friendshipId, Long userId) {
         Friend friend = friendRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy mối quan hệ bạn bè với id: " + friendshipId));
 
-        // Check if user is the receiver of the request
+        // Kiểm tra người dùng có phải là người nhận lời mời không
         if (!friend.getUser2().getUserId().equals(userId)) {
-            throw new BadRequestException("Only the receiver can accept the friend request");
+            throw new BadRequestException("Chỉ người nhận mới có thể chấp nhận lời mời kết bạn");
         }
 
-        // Check if status is PENDING
+        // Kiểm tra trạng thái có phải là CHỜ không
         if (friend.getStatus() != FriendStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
         friend.setStatus(FriendStatus.ACCEPTED);
@@ -115,16 +116,17 @@ public class FriendService {
     @Transactional
     public FriendDto rejectFriendRequest(Long friendshipId, Long userId) {
         Friend friend = friendRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy mối quan hệ bạn bè với id: " + friendshipId));
 
-        // Check if user is the receiver of the request
+        // Kiểm tra người dùng có phải là người nhận lời mời không
         if (!friend.getUser2().getUserId().equals(userId)) {
-            throw new BadRequestException("Only the receiver can reject the friend request");
+            throw new BadRequestException("Chỉ người nhận mới có thể từ chối lời mời kết bạn");
         }
 
-        // Check if status is PENDING
+        // Kiểm tra trạng thái có phải là CHỜ không
         if (friend.getStatus() != FriendStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
         friendRepository.delete(friend);
@@ -143,17 +145,17 @@ public class FriendService {
     @Transactional
     public FriendDto blockFriend(Long userId, Long friendId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         User friendToBlock = userRepository.findById(friendId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friend not found with id: " + friendId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bạn với id: " + friendId));
 
         Friend friendship = friendRepository.findByUsers(user, friendToBlock)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mối quan hệ bạn bè"));
 
-        // Set the user who initiated the block as user1
+        // Đặt người thực hiện chặn là user1
         if (friendship.getUser1().getUserId().equals(friendId)) {
-            // Swap users to ensure blocker is user1
+            // Đảo vị trí để đảm bảo người chặn là user1
             User temp = friendship.getUser1();
             friendship.setUser1(friendship.getUser2());
             friendship.setUser2(temp);
@@ -178,18 +180,18 @@ public class FriendService {
     @Transactional
     public FriendDto unblockFriend(Long userId, Long friendId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         User friendToUnblock = userRepository.findById(friendId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friend not found with id: " + friendId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bạn với id: " + friendId));
 
         Friend friendship = friendRepository.findByUsers(user, friendToUnblock)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mối quan hệ bạn bè"));
 
-        // Check if the user is the one who blocked
+        // Kiểm tra người dùng có phải là người đã chặn không
         if (!friendship.getUser1().getUserId().equals(userId) ||
                 friendship.getStatus() != FriendStatus.BLOCKED) {
-            throw new BadRequestException("You cannot unblock this user");
+            throw new BadRequestException("Bạn không thể bỏ chặn người dùng này");
         }
 
         friendship.setStatus(FriendStatus.ACCEPTED);
@@ -206,7 +208,7 @@ public class FriendService {
      */
     public List<FriendDto> getFriends(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         return friendRepository.findAcceptedFriendships(user).stream()
                 .map(this::mapToDto)
@@ -223,7 +225,7 @@ public class FriendService {
      */
     public List<FriendDto> searchFriendsByName(Long userId, String searchTerm) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         return friendRepository.searchFriendsByName(user, searchTerm).stream()
                 .map(this::mapToDto)
@@ -239,7 +241,7 @@ public class FriendService {
      */
     public List<FriendDto> getPendingFriendRequests(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         return friendRepository.findPendingFriendRequests(user).stream()
                 .map(this::mapToDto)
@@ -255,7 +257,7 @@ public class FriendService {
      */
     public List<FriendDto> getSentFriendRequests(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         return friendRepository.findSentFriendRequests(user).stream()
                 .map(this::mapToDto)
@@ -275,16 +277,17 @@ public class FriendService {
     @Transactional
     public FriendDto withdrawFriendRequest(Long friendshipId, Long userId) {
         Friend friend = friendRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy mối quan hệ bạn bè với id: " + friendshipId));
 
-        // Check if user is the sender of the request
+        // Kiểm tra người dùng có phải là người gửi lời mời không
         if (!friend.getUser1().getUserId().equals(userId)) {
-            throw new BadRequestException("Only the sender can withdraw the friend request");
+            throw new BadRequestException("Chỉ người gửi mới có thể thu hồi lời mời kết bạn");
         }
 
-        // Check if status is PENDING
+        // Kiểm tra trạng thái có phải là CHỜ không
         if (friend.getStatus() != FriendStatus.PENDING) {
-            throw new BadRequestException("Friend request is not pending");
+            throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
         friendRepository.delete(friend);
@@ -306,16 +309,17 @@ public class FriendService {
     @Transactional
     public FriendDto deleteFriend(Long friendshipId, Long userId) {
         Friend friend = friendRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found with id: " + friendshipId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy mối quan hệ bạn bè với id: " + friendshipId));
 
-        // Check if user is one of the friends
+        // Kiểm tra người dùng có phải là một trong hai người bạn không
         if (!friend.getUser1().getUserId().equals(userId) && !friend.getUser2().getUserId().equals(userId)) {
-            throw new BadRequestException("You can only delete your own friendships");
+            throw new BadRequestException("Bạn chỉ có thể xóa mối quan hệ bạn bè của chính mình");
         }
 
-        // Check if friendship is accepted
+        // Kiểm tra trạng thái đã chấp nhận
         if (friend.getStatus() != FriendStatus.ACCEPTED) {
-            throw new BadRequestException("Can only delete accepted friendships");
+            throw new BadRequestException("Chỉ có thể xóa mối quan hệ bạn bè đã được chấp nhận");
         }
 
         friendRepository.delete(friend);

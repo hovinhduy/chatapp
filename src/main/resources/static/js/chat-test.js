@@ -64,7 +64,7 @@ async function login() {
     const data = await response.json();
 
     if (response.ok) {
-      token = data.accessToken;
+      token = data.payload.accessToken;
       localStorage.setItem("chatToken", token);
       fetchCurrentUser();
     } else {

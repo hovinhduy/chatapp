@@ -1,11 +1,11 @@
 package com.chatapp.controller;
 
 import com.chatapp.dto.request.FriendDto;
+import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.service.FriendService;
 import com.chatapp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,7 +18,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/friends")
-@Tag(name = "Friend Management", description = "APIs for managing friend relationships")
+@Tag(name = "Friend Management", description = "Các API quản lý quan hệ bạn bè")
 @SecurityRequirement(name = "bearerAuth")
 public class FriendController {
 
@@ -30,149 +30,215 @@ public class FriendController {
                 this.userService = userService;
         }
 
-        @Operation(summary = "Send friend request", description = "Sends a friend request to another user")
+        @Operation(summary = "Gửi lời mời kết bạn", description = "Gửi lời mời kết bạn tới người dùng khác")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Friend request sent successfully"),
-                        @ApiResponse(responseCode = "404", description = "User not found"),
-                        @ApiResponse(responseCode = "409", description = "Friend request already exists")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Gửi lời mời kết bạn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Đã tồn tại lời mời kết bạn")
         })
         @PostMapping("/request/{userId}")
-        public ResponseEntity<FriendDto> sendFriendRequest(
+        public ResponseEntity<ApiResponse<FriendDto>> sendFriendRequest(
                         @Parameter(description = "User ID to send friend request to", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long senderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.sendFriendRequest(senderId, userId));
+                FriendDto result = friendService.sendFriendRequest(senderId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Gửi lời mời kết bạn thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Accept friend request", description = "Accepts a pending friend request")
+        @Operation(summary = "Chấp nhận lời mời kết bạn", description = "Chấp nhận lời mời kết bạn đang chờ xử lý")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Friend request accepted successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to accept this request"),
-                        @ApiResponse(responseCode = "404", description = "Friend request not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chấp nhận lời mời kết bạn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền chấp nhận lời mời này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy lời mời kết bạn")
         })
         @PostMapping("/accept/{friendshipId}")
-        public ResponseEntity<FriendDto> acceptFriendRequest(
+        public ResponseEntity<ApiResponse<FriendDto>> acceptFriendRequest(
                         @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.acceptFriendRequest(friendshipId, userId));
+                FriendDto result = friendService.acceptFriendRequest(friendshipId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Chấp nhận lời mời kết bạn thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Reject friend request", description = "Rejects a pending friend request")
+        @Operation(summary = "Từ chối lời mời kết bạn", description = "Từ chối lời mời kết bạn đang chờ xử lý")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Friend request rejected successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to reject this request"),
-                        @ApiResponse(responseCode = "404", description = "Friend request not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Từ chối lời mời kết bạn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền từ chối lời mời này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy lời mời kết bạn")
         })
         @PostMapping("/reject/{friendshipId}")
-        public ResponseEntity<FriendDto> rejectFriendRequest(
+        public ResponseEntity<ApiResponse<FriendDto>> rejectFriendRequest(
                         @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.rejectFriendRequest(friendshipId, userId));
+                FriendDto result = friendService.rejectFriendRequest(friendshipId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Từ chối lời mời kết bạn thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Block friend", description = "Blocks a user from sending friend requests")
+        @Operation(summary = "Chặn người dùng", description = "Chặn người dùng không cho gửi lời mời kết bạn")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "User blocked successfully"),
-                        @ApiResponse(responseCode = "404", description = "User not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chặn người dùng thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
         })
         @PostMapping("/block/{userId}")
-        public ResponseEntity<FriendDto> blockFriend(
+        public ResponseEntity<ApiResponse<FriendDto>> blockFriend(
                         @Parameter(description = "User ID to block", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long currentUserId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.blockFriend(currentUserId, userId));
+                FriendDto result = friendService.blockFriend(currentUserId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Chặn người dùng thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Unblock friend", description = "Unblocks a previously blocked user")
+        @Operation(summary = "Bỏ chặn người dùng", description = "Bỏ chặn người dùng đã bị chặn trước đó")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "User unblocked successfully"),
-                        @ApiResponse(responseCode = "404", description = "User not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Bỏ chặn người dùng thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
         })
         @PostMapping("/unblock/{userId}")
-        public ResponseEntity<FriendDto> unblockFriend(
+        public ResponseEntity<ApiResponse<FriendDto>> unblockFriend(
                         @Parameter(description = "User ID to unblock", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long currentUserId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.unblockFriend(currentUserId, userId));
+                FriendDto result = friendService.unblockFriend(currentUserId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Bỏ chặn người dùng thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Get friends", description = "Retrieves the list of all friends")
+        @Operation(summary = "Lấy danh sách bạn bè", description = "Lấy toàn bộ danh sách bạn bè")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved friends list")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách bạn bè thành công")
         })
         @GetMapping
-        public ResponseEntity<List<FriendDto>> getFriends(
+        public ResponseEntity<ApiResponse<List<FriendDto>>> getFriends(
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.getFriends(userId));
+                List<FriendDto> result = friendService.getFriends(userId);
+                ApiResponse<List<FriendDto>> response = ApiResponse.<List<FriendDto>>builder()
+                                .success(true)
+                                .message("Lấy danh sách bạn bè thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Get pending requests", description = "Retrieves the list of pending friend requests")
+        @Operation(summary = "Lấy danh sách lời mời kết bạn chờ xử lý", description = "Lấy danh sách lời mời kết bạn đang chờ xử lý")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved pending requests")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách lời mời kết bạn chờ xử lý thành công")
         })
         @GetMapping("/pending")
-        public ResponseEntity<List<FriendDto>> getPendingFriendRequests(
+        public ResponseEntity<ApiResponse<List<FriendDto>>> getPendingFriendRequests(
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.getPendingFriendRequests(userId));
+                List<FriendDto> result = friendService.getPendingFriendRequests(userId);
+                ApiResponse<List<FriendDto>> response = ApiResponse.<List<FriendDto>>builder()
+                                .success(true)
+                                .message("Lấy danh sách lời mời kết bạn đang chờ thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Get sent requests", description = "Retrieves the list of sent friend requests")
+        @Operation(summary = "Lấy danh sách lời mời kết bạn đã gửi", description = "Lấy danh sách lời mời kết bạn đã gửi đi")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved sent requests")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách lời mời kết bạn đã gửi thành công")
         })
         @GetMapping("/sent")
-        public ResponseEntity<List<FriendDto>> getSentFriendRequests(
+        public ResponseEntity<ApiResponse<List<FriendDto>>> getSentFriendRequests(
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.getSentFriendRequests(userId));
+                List<FriendDto> result = friendService.getSentFriendRequests(userId);
+                ApiResponse<List<FriendDto>> response = ApiResponse.<List<FriendDto>>builder()
+                                .success(true)
+                                .message("Lấy danh sách lời mời kết bạn đã gửi thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Withdraw friend request", description = "Withdraws a sent friend request")
+        @Operation(summary = "Thu hồi lời mời kết bạn", description = "Thu hồi lời mời kết bạn đã gửi")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Friend request withdrawn successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to withdraw this request"),
-                        @ApiResponse(responseCode = "404", description = "Friend request not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thu hồi lời mời kết bạn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền thu hồi lời mời này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy lời mời kết bạn")
         })
         @DeleteMapping("/withdraw/{friendshipId}")
-        public ResponseEntity<FriendDto> withdrawFriendRequest(
+        public ResponseEntity<ApiResponse<FriendDto>> withdrawFriendRequest(
                         @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.withdrawFriendRequest(friendshipId, userId));
+                FriendDto result = friendService.withdrawFriendRequest(friendshipId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Thu hồi lời mời kết bạn thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Search friends by name", description = "Searches friends by their display name")
+        @Operation(summary = "Tìm kiếm bạn bè theo tên", description = "Tìm kiếm bạn bè theo tên hiển thị")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved search results")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tìm kiếm bạn bè thành công")
         })
         @GetMapping("/search")
-        public ResponseEntity<List<FriendDto>> searchFriendsByName(
+        public ResponseEntity<ApiResponse<List<FriendDto>>> searchFriendsByName(
                         @Parameter(description = "Search term for display name", required = true) @RequestParam String searchTerm,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.searchFriendsByName(userId, searchTerm));
+                List<FriendDto> result = friendService.searchFriendsByName(userId, searchTerm);
+                ApiResponse<List<FriendDto>> response = ApiResponse.<List<FriendDto>>builder()
+                                .success(true)
+                                .message("Tìm kiếm bạn bè theo tên thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Delete friend", description = "Deletes a friendship with another user")
+        @Operation(summary = "Xóa bạn bè", description = "Xóa quan hệ bạn bè với người dùng khác")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Friendship deleted successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to delete this friendship"),
-                        @ApiResponse(responseCode = "404", description = "Friendship not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xóa bạn bè thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền xóa quan hệ bạn bè này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy quan hệ bạn bè")
         })
         @DeleteMapping("/{friendshipId}")
-        public ResponseEntity<FriendDto> deleteFriend(
+        public ResponseEntity<ApiResponse<FriendDto>> deleteFriend(
                         @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(friendService.deleteFriend(friendshipId, userId));
+                FriendDto result = friendService.deleteFriend(friendshipId, userId);
+                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                                .success(true)
+                                .message("Xóa bạn bè thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
         }
 }
