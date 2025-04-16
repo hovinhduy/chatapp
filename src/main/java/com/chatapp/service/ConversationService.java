@@ -3,6 +3,7 @@ package com.chatapp.service;
 import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.dto.request.MessageDto;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.dto.response.AttachmentDto;
 import com.chatapp.enums.ConversationType;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Conversation;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 @Service
 public class ConversationService {
@@ -178,6 +180,21 @@ public class ConversationService {
         dto.setSenderId(message.getSender().getUserId());
         dto.setContent(message.getContent());
         dto.setCreatedAt(message.getCreatedAt());
+        dto.setType(message.getType().name());
+        dto.setSenderName(message.getSender().getDisplayName());
+
+        Set<AttachmentDto> attachmentDtos = message.getAttachments().stream()
+                .map(attachment -> new AttachmentDto(
+                        attachment.getId(),
+                        attachment.getName(),
+                        attachment.getType(),
+                        attachment.getUrl(),
+                        attachment.getSize(),
+                        attachment.getCreatedAt(),
+                        attachment.getUpdatedAt()))
+                .collect(Collectors.toSet());
+        dto.setFiles(attachmentDtos);
+
         return dto;
     }
 
@@ -187,6 +204,7 @@ public class ConversationService {
         dto.setPhone(user.getPhone());
         dto.setDisplayName(user.getDisplayName());
         dto.setCreatedAt(user.getCreatedAt());
+        dto.setAvatarUrl(user.getAvatarUrl());
         return dto;
     }
 

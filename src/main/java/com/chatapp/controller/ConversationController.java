@@ -27,7 +27,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.security.Principal;
@@ -36,6 +37,8 @@ import com.chatapp.dto.request.UserDto;
 import com.chatapp.model.DeletedMessage;
 import com.chatapp.repository.DeletedMessageRepository;
 import com.chatapp.service.MessageService;
+import com.chatapp.model.Attachments;
+import com.chatapp.service.AttachmentsService;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -66,6 +69,9 @@ public class ConversationController {
 
     @Autowired
     private MessageService messageService;
+
+    @Autowired
+    private AttachmentsService attachmentsService;
 
     @Operation(summary = "Lấy danh sách cuộc trò chuyện", description = "Lấy tất cả các cuộc trò chuyện của người dùng hiện tại")
     @ApiResponses(value = {
@@ -365,6 +371,118 @@ public class ConversationController {
                 .message("Chuyển tiếp tin nhắn thành công")
                 .payload(savedMessageDto)
                 .build());
+    }
+
+    @Operation(summary = "Upload file trong cuộc trò chuyện", description = "Upload file và gửi như một tin nhắn trong cuộc trò chuyện")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Upload file thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền gửi file trong cuộc trò chuyện này"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+    })
+    @PostMapping("/{conversationId}/upload")
+    public ResponseEntity<ApiResponse<MessageDto>> uploadFile(
+            @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
+            @Parameter(description = "File to upload", required = true) @RequestParam("file") MultipartFile file,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        try {
+            UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+            Long senderId = userDto.getUserId();
+
+            if (!conversationService.isUserInConversation(conversationId, senderId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.<MessageDto>builder()
+                                .success(false)
+                                .message("Bạn không có quyền gửi file trong cuộc trò chuyện này")
+                                .build());
+            }
+
+            // Upload file và lưu thông tin attachment
+            Attachments attachment = attachmentsService.uploadFile(file);
+
+            // Xác định loại tin nhắn dựa trên loại file
+            MessageType messageType = determineMessageType(file.getContentType());
+
+            // Tạo tin nhắn mới với file đính kèm
+            Message message = new Message();
+            message.setSender(userRepository.findById(senderId).orElseThrow());
+            message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
+            message.setContent(attachment.getName());
+            message.setType(messageType);
+            message.setCreatedAt(LocalDateTime.now());
+
+            // Thiết lập mối quan hệ hai chiều
+            message.getAttachments().add(attachment);
+            attachment.setMessage(message);
+
+            Message savedMessage = messageRepository.save(message);
+            MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
+
+            // Gửi thông báo realtime qua WebSocket
+            messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, savedMessageDto);
+
+            return ResponseEntity.ok(ApiResponse.<MessageDto>builder()
+                    .success(true)
+                    .message("Upload file thành công")
+                    .payload(savedMessageDto)
+                    .build());
+
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Lỗi khi upload file: " + e.getMessage())
+                            .build());
+        }
+    }
+
+    // WebSocket upload file realtime
+    @MessageMapping("/conversation/{conversationId}/upload")
+    @SendTo("/queue/conversation/{conversationId}")
+    public MessageDto handleFileUpload(
+            @DestinationVariable Long conversationId,
+            @RequestParam("file") MultipartFile file,
+            Principal principal) throws IOException {
+        UserDto userDto = userService.getUserByPhone(principal.getName());
+        Long senderId = userDto.getUserId();
+
+        if (!conversationService.isUserInConversation(conversationId, senderId)) {
+            throw new AccessDeniedException("Bạn không có quyền gửi file trong cuộc trò chuyện này");
+        }
+
+        Attachments attachment = attachmentsService.uploadFile(file);
+
+        // Xác định loại tin nhắn dựa trên loại file
+        MessageType messageType = determineMessageType(file.getContentType());
+
+        Message message = new Message();
+        message.setSender(userRepository.findById(senderId).orElseThrow());
+        message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
+        message.setContent(attachment.getName());
+        message.setType(messageType);
+        message.setCreatedAt(LocalDateTime.now());
+
+        // Thiết lập mối quan hệ hai chiều
+        message.getAttachments().add(attachment);
+        attachment.setMessage(message);
+
+        Message savedMessage = messageRepository.save(message);
+        return conversationService.mapToMessageDto(savedMessage);
+    }
+
+    private MessageType determineMessageType(String contentType) {
+        if (contentType == null) {
+            return MessageType.DOCUMENT;
+        }
+
+        if (contentType.startsWith("image/")) {
+            return MessageType.IMAGE;
+        } else if (contentType.startsWith("video/")) {
+            return MessageType.VIDEO;
+        } else if (contentType.startsWith("audio/")) {
+            return MessageType.AUDIO;
+        } else {
+            return MessageType.DOCUMENT;
+        }
     }
 
     public static class ConversationRequest {
