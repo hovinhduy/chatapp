@@ -42,7 +42,7 @@ public class ConversationService {
 
     public List<ConversationDto> getConversationsByUserId(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         List<Conversation> conversations = conversationRepository.findByParticipantId(userId);
         return conversations.stream()
@@ -53,7 +53,7 @@ public class ConversationService {
     @Transactional
     public ConversationDto createConversation(Long creatorId, List<Long> participantIds) {
         User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + creatorId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + creatorId));
 
         Conversation conversation = new Conversation();
         conversation.setType(participantIds.size() == 1
@@ -72,7 +72,8 @@ public class ConversationService {
         // Thêm các người tham gia khác
         for (Long participantId : participantIds) {
             User participant = userRepository.findById(participantId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + participantId));
+                    .orElseThrow(
+                            () -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + participantId));
 
             ConversationUser conversationUser = new ConversationUser();
             conversationUser.setConversation(savedConversation);
@@ -87,10 +88,10 @@ public class ConversationService {
     public ConversationDto getOrCreateOneToOneConversation(Long userId1, Long userId2) {
         // Tìm người dùng
         User user1 = userRepository.findById(userId1)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId1));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId1));
 
         User user2 = userRepository.findById(userId2)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId2));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId2));
 
         // Tìm cuộc trò chuyện 1-1 giữa hai người dùng
         Optional<Conversation> existingConversation = conversationRepository.findOneToOneConversation(userId1, userId2);
@@ -124,7 +125,8 @@ public class ConversationService {
         // Kiểm tra xem người dùng có trong cuộc trò chuyện không
         boolean isParticipant = conversationUserRepository.existsByConversationIdAndUserId(conversationId, userId);
         if (!isParticipant) {
-            throw new ResourceNotFoundException("Conversation not found or user is not a participant");
+            throw new ResourceNotFoundException(
+                    "Không tìm thấy cuộc trò chuyện hoặc người dùng không phải là thành viên");
         }
 
         List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);

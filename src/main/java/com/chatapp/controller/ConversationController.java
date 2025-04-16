@@ -34,7 +34,7 @@ import com.chatapp.dto.request.UserDto;
 
 @RestController
 @RequestMapping("/api/conversations")
-@Tag(name = "Conversation Management", description = "APIs for managing chat conversations")
+@Tag(name = "Conversation Management", description = "Các API để quản lý cuộc trò chuyện chat")
 @SecurityRequirement(name = "bearerAuth")
 public class ConversationController {
 
@@ -56,9 +56,9 @@ public class ConversationController {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
-    @Operation(summary = "Get conversations", description = "Retrieves all conversations for the current user")
+    @Operation(summary = "Lấy danh sách cuộc trò chuyện", description = "Lấy tất cả các cuộc trò chuyện của người dùng hiện tại")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved conversations")
+            @ApiResponse(responseCode = "200", description = "Lấy danh sách cuộc trò chuyện thành công")
     })
     @GetMapping
     public ResponseEntity<List<ConversationDto>> getConversations(
@@ -67,11 +67,11 @@ public class ConversationController {
         return ResponseEntity.ok(conversationService.getConversationsByUserId(userId));
     }
 
-    @Operation(summary = "Create conversation", description = "Creates a new conversation with multiple participants")
+    @Operation(summary = "Tạo cuộc trò chuyện", description = "Tạo mới một cuộc trò chuyện với nhiều thành viên")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Conversation created successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid participant data"),
-            @ApiResponse(responseCode = "404", description = "One or more participants not found")
+            @ApiResponse(responseCode = "200", description = "Tạo cuộc trò chuyện thành công"),
+            @ApiResponse(responseCode = "400", description = "Dữ liệu thành viên không hợp lệ"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy một hoặc nhiều thành viên")
     })
     @PostMapping
     public ResponseEntity<ConversationDto> createConversation(
@@ -81,10 +81,10 @@ public class ConversationController {
         return ResponseEntity.ok(conversationService.createConversation(userId, request.getParticipantIds()));
     }
 
-    @Operation(summary = "Get or create one-to-one conversation", description = "Retrieves an existing one-to-one conversation or creates a new one")
+    @Operation(summary = "Lấy hoặc tạo cuộc trò chuyện 1-1", description = "Lấy cuộc trò chuyện 1-1 đã tồn tại hoặc tạo mới nếu chưa có")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved or created conversation"),
-            @ApiResponse(responseCode = "404", description = "User not found")
+            @ApiResponse(responseCode = "200", description = "Lấy hoặc tạo cuộc trò chuyện thành công"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
     })
     @PostMapping("/user/{userId}")
     public ResponseEntity<ConversationDto> getOrCreateOneToOneConversation(
@@ -94,11 +94,11 @@ public class ConversationController {
         return ResponseEntity.ok(conversationService.getOrCreateOneToOneConversation(currentUserId, userId));
     }
 
-    @Operation(summary = "Get conversation messages", description = "Retrieves all messages in a conversation")
+    @Operation(summary = "Lấy tin nhắn cuộc trò chuyện", description = "Lấy tất cả tin nhắn trong một cuộc trò chuyện")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully retrieved messages"),
-            @ApiResponse(responseCode = "403", description = "Not authorized to access this conversation"),
-            @ApiResponse(responseCode = "404", description = "Conversation not found")
+            @ApiResponse(responseCode = "200", description = "Lấy tin nhắn thành công"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
     })
     @GetMapping("/{conversationId}/messages")
     public ResponseEntity<List<MessageDto>> getMessages(
@@ -108,11 +108,11 @@ public class ConversationController {
         return ResponseEntity.ok(conversationService.getMessagesByConversationId(conversationId, userId));
     }
 
-    @Operation(summary = "Send message", description = "Sends a new message in a conversation")
+    @Operation(summary = "Gửi tin nhắn", description = "Gửi một tin nhắn mới trong cuộc trò chuyện")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Message sent successfully"),
-            @ApiResponse(responseCode = "403", description = "Not authorized to send messages in this conversation"),
-            @ApiResponse(responseCode = "404", description = "Conversation not found")
+            @ApiResponse(responseCode = "200", description = "Gửi tin nhắn thành công"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền gửi tin nhắn trong cuộc trò chuyện này"),
+            @ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
     })
     @PostMapping("/{conversationId}/messages")
     public ResponseEntity<MessageDto> sendMessage(
@@ -139,14 +139,14 @@ public class ConversationController {
         Message savedMessage = messageRepository.save(message);
 
         MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
-        messagingTemplate.convertAndSend("/topic/conversation/" + conversationId, savedMessageDto);
+        messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, savedMessageDto);
 
         return ResponseEntity.ok(savedMessageDto);
     }
 
-    @Operation(summary = "Handle WebSocket message", description = "Handles incoming WebSocket messages in a conversation")
+    @Operation(summary = "Xử lý tin nhắn WebSocket", description = "Xử lý tin nhắn WebSocket gửi đến trong một cuộc trò chuyện")
     @MessageMapping("/conversation/{conversationId}")
-    @SendTo("/topic/conversation/{conversationId}")
+    @SendTo("/queue/conversation/{conversationId}")
     public MessageDto handleMessage(
             @Parameter(description = "Conversation ID", required = true) @DestinationVariable Long conversationId,
             @Parameter(description = "Message details", required = true) MessageDto messageDto,

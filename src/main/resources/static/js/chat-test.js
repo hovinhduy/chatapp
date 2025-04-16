@@ -144,7 +144,7 @@ function connectWebSocket() {
 function subscribeToConversation(conversationId) {
   if (stompClient && stompClient.connected) {
     stompClient.subscribe(
-      `/topic/conversation/${conversationId}`,
+      `/queue/conversation/${conversationId}`,
       function (message) {
         const receivedMessage = JSON.parse(message.body);
         handleIncomingMessage(receivedMessage);
@@ -489,8 +489,7 @@ function handleIncomingMessage(message) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 
-  // Cập nhật danh sách cuộc trò chuyện nếu cần
-  fetchConversations();
+  // KHÔNG gọi fetchConversations() ở đây để tránh load tin nhắn 2 lần
 }
 
 // Đăng xuất

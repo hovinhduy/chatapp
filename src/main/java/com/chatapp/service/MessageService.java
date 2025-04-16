@@ -63,11 +63,11 @@ public class MessageService {
     @Transactional
     public MessageDto createDirectMessage(Long senderId, MessageDto messageDto) {
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sender not found with id: " + senderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi với id: " + senderId));
 
         User receiver = userRepository.findById(messageDto.getReceiverId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Receiver not found with id: " + messageDto.getReceiverId()));
+                        "Không tìm thấy người nhận với id: " + messageDto.getReceiverId()));
 
         Message message = new Message();
         message.setSender(sender);
@@ -96,14 +96,14 @@ public class MessageService {
     @Transactional
     public MessageDto createGroupMessage(Long senderId, MessageDto messageDto) {
         User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sender not found with id: " + senderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người gửi với id: " + senderId));
 
         Group group = groupRepository.findById(messageDto.getGroupId())
                 .orElseThrow(
-                        () -> new ResourceNotFoundException("Group not found with id: " + messageDto.getGroupId()));
+                        () -> new ResourceNotFoundException("Không tìm thấy nhóm với id: " + messageDto.getGroupId()));
 
         if (!groupMemberRepository.existsByGroupAndUser(group, sender)) {
-            throw new UnauthorizedException("You are not a member of this group");
+            throw new UnauthorizedException("Bạn không phải là thành viên của nhóm này");
         }
 
         Message message = new Message();
@@ -130,10 +130,10 @@ public class MessageService {
      */
     public List<MessageDto> getDirectMessages(Long user1Id, Long user2Id) {
         User user1 = userRepository.findById(user1Id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + user1Id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + user1Id));
 
         User user2 = userRepository.findById(user2Id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + user2Id));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + user2Id));
 
         return messageRepository.findMessagesBetweenUsers(user1, user2).stream()
                 .map(this::mapToDto)
@@ -152,13 +152,13 @@ public class MessageService {
      */
     public List<MessageDto> getGroupMessages(Long groupId, Long userId) {
         Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new ResourceNotFoundException("Group not found with id: " + groupId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhóm với id: " + groupId));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
 
         if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
-            throw new UnauthorizedException("You are not a member of this group");
+            throw new UnauthorizedException("Bạn không phải là thành viên của nhóm này");
         }
 
         return messageRepository.findByGroup(group).stream()
@@ -180,10 +180,10 @@ public class MessageService {
     @Transactional
     public MessageDto updateMessage(Long messageId, String newContent, Long userId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found with id: " + messageId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tin nhắn với id: " + messageId));
 
         if (!message.getSender().getUserId().equals(userId)) {
-            throw new UnauthorizedException("You can only edit your own messages");
+            throw new UnauthorizedException("Bạn chỉ có thể chỉnh sửa tin nhắn của chính mình");
         }
 
         message.setContent(newContent);
@@ -217,10 +217,10 @@ public class MessageService {
     @Transactional
     public void deleteMessage(Long messageId, Long userId) {
         Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new ResourceNotFoundException("Message not found with id: " + messageId));
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tin nhắn với id: " + messageId));
 
         if (!message.getSender().getUserId().equals(userId)) {
-            throw new UnauthorizedException("You can only delete your own messages");
+            throw new UnauthorizedException("Bạn chỉ có thể xóa tin nhắn của chính mình");
         }
 
         messageRepository.delete(message);
