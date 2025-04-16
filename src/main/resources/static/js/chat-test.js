@@ -63,7 +63,7 @@ async function login() {
 
     const data = await response.json();
 
-    if (response.ok) {
+    if (response.ok && data.success) {
       token = data.payload.accessToken;
       localStorage.setItem("chatToken", token);
       fetchCurrentUser();
@@ -85,8 +85,10 @@ async function fetchCurrentUser() {
       },
     });
 
-    if (response.ok) {
-      currentUser = await response.json();
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      currentUser = data.payload;
       loggedUserSpan.textContent = currentUser.displayName || currentUser.phone;
 
       loginSection.style.display = "none";
@@ -166,9 +168,8 @@ async function fetchFriends() {
     });
     const data = await response.json();
 
-    if (response.ok) {
-      const friends = data.payload;
-      displayFriends(friends);
+    if (response.ok && data.success) {
+      displayFriends(data.payload);
     }
   } catch (error) {
     console.error("Lỗi lấy danh sách bạn bè:", error);
@@ -208,7 +209,6 @@ function displayFriends(friends) {
 // Thêm hàm mới để bắt đầu chat với người dùng
 async function startChatWithUser(user) {
   try {
-    // Tìm hoặc tạo cuộc trò chuyện
     const response = await fetch(`/api/conversations/user/${user.userId}`, {
       method: "POST",
       headers: {
@@ -217,11 +217,10 @@ async function startChatWithUser(user) {
       },
     });
 
-    if (response.ok) {
-      const conversation = await response.json();
-      // Chọn cuộc trò chuyện này
-      selectConversation(conversation);
-      // Cập nhật lại danh sách cuộc trò chuyện
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      selectConversation(data.payload);
       fetchConversations();
     }
   } catch (error) {
@@ -238,9 +237,10 @@ async function fetchConversations() {
       },
     });
 
-    if (response.ok) {
-      const conversationsData = await response.json();
-      displayConversations(conversationsData);
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      displayConversations(data.payload);
     }
   } catch (error) {
     console.error("Lỗi lấy danh sách cuộc trò chuyện:", error);
@@ -281,7 +281,6 @@ function displayConversations(conversationsData) {
 async function startChat(user) {
   console.log("Bắt đầu chat với user:", user);
 
-  // Kiểm tra xem đã có cuộc trò chuyện với người này chưa
   const existingConversation = Object.values(conversations).find((conv) =>
     conv.participants.some((p) => p.userId === user.userId)
   );
@@ -296,9 +295,7 @@ async function startChat(user) {
   }
 
   console.log("Tạo cuộc trò chuyện mới với user:", user);
-  // Tạo cuộc trò chuyện mới bằng API endpoint mới
   try {
-    // Thêm dấu / ở đầu URL
     const response = await fetch(`/api/conversations/user/${user.userId}`, {
       method: "POST",
       headers: {
@@ -307,12 +304,13 @@ async function startChat(user) {
       },
     });
 
-    if (response.ok) {
-      const conversation = await response.json();
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      const conversation = data.payload;
       console.log("Cuộc trò chuyện mới được tạo:", conversation);
       conversations[conversation.id] = conversation;
 
-      // Thêm vào danh sách cuộc trò chuyện
       const conversationItem = document.createElement("div");
       conversationItem.className = "conversation-item";
       conversationItem.textContent = user.displayName || user.phone;
@@ -323,18 +321,9 @@ async function startChat(user) {
       });
 
       conversationsList.appendChild(conversationItem);
-
-      // Tải cuộc trò chuyện
       loadConversation(conversation, user);
     } else {
-      const errorText = await response.text();
-      console.error("Lỗi khi tạo cuộc trò chuyện:", response.status, errorText);
-      try {
-        const errorJson = JSON.parse(errorText);
-        console.error("Chi tiết lỗi:", errorJson);
-      } catch (e) {
-        // Nếu không phải JSON, hiển thị text gốc
-      }
+      console.error("Lỗi khi tạo cuộc trò chuyện:", data.message);
     }
   } catch (error) {
     console.error("Lỗi tạo cuộc trò chuyện:", error);
@@ -348,15 +337,12 @@ async function loadConversation(conversation, user) {
     user: user,
   };
 
-  // Đăng ký nhận tin nhắn từ cuộc trò chuyện này
   subscribeToConversation(conversation.id);
 
-  // Cập nhật UI
   chatWithSpan.textContent = user.displayName || user.phone;
   messageInput.disabled = false;
   sendBtn.disabled = false;
 
-  // Đánh dấu cuộc trò chuyện đang hoạt động
   document.querySelectorAll(".conversation-item").forEach((item) => {
     item.classList.remove("active-chat");
   });
@@ -368,7 +354,6 @@ async function loadConversation(conversation, user) {
     activeItem.classList.add("active-chat");
   }
 
-  // Lấy tin nhắn cũ
   try {
     const response = await fetch(
       `/api/conversations/${conversation.id}/messages`,
@@ -379,9 +364,10 @@ async function loadConversation(conversation, user) {
       }
     );
 
-    if (response.ok) {
-      const messages = await response.json();
-      displayMessages(messages);
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      displayMessages(data.payload);
     }
   } catch (error) {
     console.error("Lỗi lấy tin nhắn:", error);
@@ -449,10 +435,13 @@ async function sendMessage() {
       }
     );
 
-    if (response.ok) {
-      messageInput.value = "";
+    const data = await response.json();
 
+    if (response.ok && data.success) {
+      messageInput.value = "";
       // Tin nhắn sẽ được cập nhật thông qua WebSocket
+    } else {
+      console.error("Lỗi gửi tin nhắn:", data.message);
     }
   } catch (error) {
     console.error("Lỗi gửi tin nhắn:", error);

@@ -9,10 +9,12 @@ import com.chatapp.model.Conversation;
 import com.chatapp.model.ConversationUser;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
+import com.chatapp.model.DeletedMessage;
 import com.chatapp.repository.ConversationRepository;
 import com.chatapp.repository.ConversationUserRepository;
 import com.chatapp.repository.MessageRepository;
 import com.chatapp.repository.UserRepository;
+import com.chatapp.repository.DeletedMessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,9 @@ public class ConversationService {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private DeletedMessageRepository deletedMessageRepository;
+
     public List<ConversationDto> getConversationsByUserId(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
@@ -55,8 +60,14 @@ public class ConversationService {
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + creatorId));
 
+        // Loại bỏ userId trùng lặp và loại bỏ cả creatorId nếu có trong participantIds
+        List<Long> uniqueParticipantIds = participantIds.stream()
+                .filter(id -> !id.equals(creatorId))
+                .distinct()
+                .toList();
+
         Conversation conversation = new Conversation();
-        conversation.setType(participantIds.size() == 1
+        conversation.setType(uniqueParticipantIds.size() == 1
                 ? ConversationType.ONE_TO_ONE
                 : ConversationType.GROUP);
         conversation.setCreatedAt(LocalDateTime.now());
@@ -69,8 +80,8 @@ public class ConversationService {
         creatorConversationUser.setUser(creator);
         conversationUserRepository.save(creatorConversationUser);
 
-        // Thêm các người tham gia khác
-        for (Long participantId : participantIds) {
+        // Thêm các người tham gia khác (không trùng creator và không trùng nhau)
+        for (Long participantId : uniqueParticipantIds) {
             User participant = userRepository.findById(participantId)
                     .orElseThrow(
                             () -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + participantId));
@@ -130,6 +141,14 @@ public class ConversationService {
         }
 
         List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null) {
+            List<Long> deletedMessageIds = deletedMessageRepository.findByUser(user)
+                    .stream().map(dm -> dm.getMessage().getMessageId()).toList();
+            messages = messages.stream()
+                    .filter(m -> !deletedMessageIds.contains(m.getMessageId()))
+                    .collect(Collectors.toList());
+        }
         return messages.stream()
                 .map(this::mapToMessageDto)
                 .collect(Collectors.toList());

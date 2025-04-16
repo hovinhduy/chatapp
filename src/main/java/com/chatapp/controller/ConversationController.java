@@ -7,9 +7,9 @@ import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.service.ConversationService;
 import com.chatapp.service.UserService;
+import com.chatapp.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,10 +27,15 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.security.Principal;
+
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.model.DeletedMessage;
+import com.chatapp.repository.DeletedMessageRepository;
+import com.chatapp.service.MessageService;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -56,77 +61,106 @@ public class ConversationController {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Autowired
+    private DeletedMessageRepository deletedMessageRepository;
+
+    @Autowired
+    private MessageService messageService;
+
     @Operation(summary = "Lấy danh sách cuộc trò chuyện", description = "Lấy tất cả các cuộc trò chuyện của người dùng hiện tại")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Lấy danh sách cuộc trò chuyện thành công")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách cuộc trò chuyện thành công")
     })
     @GetMapping
-    public ResponseEntity<List<ConversationDto>> getConversations(
+    public ResponseEntity<ApiResponse<List<ConversationDto>>> getConversations(
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-        return ResponseEntity.ok(conversationService.getConversationsByUserId(userId));
+        List<ConversationDto> conversations = conversationService.getConversationsByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.<List<ConversationDto>>builder()
+                .success(true)
+                .message("Lấy danh sách cuộc trò chuyện thành công")
+                .payload(conversations)
+                .build());
     }
 
     @Operation(summary = "Tạo cuộc trò chuyện", description = "Tạo mới một cuộc trò chuyện với nhiều thành viên")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Tạo cuộc trò chuyện thành công"),
-            @ApiResponse(responseCode = "400", description = "Dữ liệu thành viên không hợp lệ"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy một hoặc nhiều thành viên")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo cuộc trò chuyện thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu thành viên không hợp lệ"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy một hoặc nhiều thành viên")
     })
     @PostMapping
-    public ResponseEntity<ConversationDto> createConversation(
+    public ResponseEntity<ApiResponse<ConversationDto>> createConversation(
             @Parameter(description = "Conversation request with participant IDs", required = true) @RequestBody ConversationRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-        return ResponseEntity.ok(conversationService.createConversation(userId, request.getParticipantIds()));
+        ConversationDto conversation = conversationService.createConversation(userId, request.getParticipantIds());
+        return ResponseEntity.ok(ApiResponse.<ConversationDto>builder()
+                .success(true)
+                .message("Tạo cuộc trò chuyện thành công")
+                .payload(conversation)
+                .build());
     }
 
     @Operation(summary = "Lấy hoặc tạo cuộc trò chuyện 1-1", description = "Lấy cuộc trò chuyện 1-1 đã tồn tại hoặc tạo mới nếu chưa có")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Lấy hoặc tạo cuộc trò chuyện thành công"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy hoặc tạo cuộc trò chuyện thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
     })
     @PostMapping("/user/{userId}")
-    public ResponseEntity<ConversationDto> getOrCreateOneToOneConversation(
-            @Parameter(description = "User ID to create/get conversation with", required = true) @PathVariable Long userId,
+    public ResponseEntity<ApiResponse<ConversationDto>> getOrCreateOneToOneConversation(
+            @Parameter(description = "ID người dùng để tạo/lấy cuộc trò chuyện với", required = true) @PathVariable Long userId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         Long currentUserId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-        return ResponseEntity.ok(conversationService.getOrCreateOneToOneConversation(currentUserId, userId));
+        ConversationDto conversation = conversationService.getOrCreateOneToOneConversation(currentUserId, userId);
+        return ResponseEntity.ok(ApiResponse.<ConversationDto>builder()
+                .success(true)
+                .message("Lấy/tạo cuộc trò chuyện thành công")
+                .payload(conversation)
+                .build());
     }
 
     @Operation(summary = "Lấy tin nhắn cuộc trò chuyện", description = "Lấy tất cả tin nhắn trong một cuộc trò chuyện")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Lấy tin nhắn thành công"),
-            @ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy tin nhắn thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
     })
     @GetMapping("/{conversationId}/messages")
-    public ResponseEntity<List<MessageDto>> getMessages(
+    public ResponseEntity<ApiResponse<List<MessageDto>>> getMessages(
             @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-        return ResponseEntity.ok(conversationService.getMessagesByConversationId(conversationId, userId));
+        List<MessageDto> messages = conversationService.getMessagesByConversationId(conversationId, userId);
+        return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
+                .success(true)
+                .message("Lấy tin nhắn thành công")
+                .payload(messages)
+                .build());
     }
 
     @Operation(summary = "Gửi tin nhắn", description = "Gửi một tin nhắn mới trong cuộc trò chuyện")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Gửi tin nhắn thành công"),
-            @ApiResponse(responseCode = "403", description = "Không có quyền gửi tin nhắn trong cuộc trò chuyện này"),
-            @ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Gửi tin nhắn thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền gửi tin nhắn trong cuộc trò chuyện này"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
     })
     @PostMapping("/{conversationId}/messages")
-    public ResponseEntity<MessageDto> sendMessage(
+    public ResponseEntity<ApiResponse<MessageDto>> sendMessage(
             @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
             @Parameter(description = "Message details", required = true) @RequestBody MessageDto messageDto,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
-
         UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
         Long senderId = userDto.getUserId();
 
         messageDto.setConversationId(conversationId);
 
         if (!conversationService.isUserInConversation(conversationId, senderId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này")
+                            .build());
         }
 
         Message message = new Message();
@@ -137,11 +171,14 @@ public class ConversationController {
         message.setCreatedAt(LocalDateTime.now());
 
         Message savedMessage = messageRepository.save(message);
-
         MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
         messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, savedMessageDto);
 
-        return ResponseEntity.ok(savedMessageDto);
+        return ResponseEntity.ok(ApiResponse.<MessageDto>builder()
+                .success(true)
+                .message("Gửi tin nhắn thành công")
+                .payload(savedMessageDto)
+                .build());
     }
 
     @Operation(summary = "Xử lý tin nhắn WebSocket", description = "Xử lý tin nhắn WebSocket gửi đến trong một cuộc trò chuyện")
@@ -170,6 +207,164 @@ public class ConversationController {
         Message savedMessage = messageRepository.save(message);
 
         return conversationService.mapToMessageDto(savedMessage);
+    }
+
+    @Operation(summary = "Thu hồi tin nhắn", description = "Thu hồi tin nhắn trong vòng 1 ngày, chỉ người gửi mới được thu hồi")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thu hồi tin nhắn thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền thu hồi hoặc quá thời gian cho phép"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy tin nhắn")
+    })
+    @PutMapping("/messages/{messageId}/recall")
+    public ResponseEntity<ApiResponse<MessageDto>> recallMessage(
+            @Parameter(description = "ID tin nhắn", required = true) @PathVariable Long messageId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+        Long userId = userDto.getUserId();
+
+        Message message = messageRepository.findById(messageId).orElse(null);
+        if (message == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Không tìm thấy tin nhắn")
+                            .build());
+        }
+
+        if (!message.getSender().getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Bạn không có quyền thu hồi tin nhắn này")
+                            .build());
+        }
+
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusDays(1))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Tin nhắn đã quá thời gian cho phép thu hồi")
+                            .build());
+        }
+
+        message.setContent("tin nhắn đã thu hồi");
+        Message savedMessage = messageRepository.save(message);
+        MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
+
+        if (message.getConversation() != null) {
+            messagingTemplate.convertAndSend("/queue/conversation/" + message.getConversation().getId(),
+                    savedMessageDto);
+        }
+
+        return ResponseEntity.ok(ApiResponse.<MessageDto>builder()
+                .success(true)
+                .message("Thu hồi tin nhắn thành công")
+                .payload(savedMessageDto)
+                .build());
+    }
+
+    // WebSocket thu hồi tin nhắn realtime
+    @MessageMapping("/conversation/{conversationId}/recall")
+    @SendTo("/queue/conversation/{conversationId}")
+    public MessageDto recallMessageWebSocket(
+            @DestinationVariable Long conversationId,
+            MessageDto messageDto,
+            Principal principal) {
+        UserDto userDto = userService.getUserByPhone(principal.getName());
+        Long userId = userDto.getUserId();
+        Message message = messageRepository.findById(messageDto.getId()).orElseThrow();
+        if (!message.getSender().getUserId().equals(userId)) {
+            throw new AccessDeniedException("Bạn không có quyền thu hồi tin nhắn này");
+        }
+        if (message.getCreatedAt().isBefore(LocalDateTime.now().minusDays(1))) {
+            throw new AccessDeniedException("Tin nhắn đã quá thời gian cho phép thu hồi");
+        }
+        message.setContent("tin nhắn đã thu hồi");
+        Message savedMessage = messageRepository.save(message);
+        return conversationService.mapToMessageDto(savedMessage);
+    }
+
+    @Operation(summary = "Xoá tin nhắn phía tôi", description = "Chỉ user hiện tại không nhìn thấy tin nhắn nữa")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xoá tin nhắn thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy tin nhắn")
+    })
+    @DeleteMapping("/messages/{messageId}")
+    public ResponseEntity<ApiResponse<Void>> deleteMessageForMe(
+            @Parameter(description = "ID tin nhắn", required = true) @PathVariable Long messageId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+        Long userId = userDto.getUserId();
+        User user = userRepository.findById(userId).orElse(null);
+        Message message = messageRepository.findById(messageId).orElse(null);
+
+        if (user == null || message == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<Void>builder()
+                            .success(false)
+                            .message("Không tìm thấy tin nhắn hoặc người dùng")
+                            .build());
+        }
+
+        if (deletedMessageRepository.findByUserAndMessage(user, message).isEmpty()) {
+            DeletedMessage deletedMessage = new DeletedMessage();
+            deletedMessage.setUser(user);
+            deletedMessage.setMessage(message);
+            deletedMessageRepository.save(deletedMessage);
+        }
+
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .success(true)
+                .message("Xóa tin nhắn thành công")
+                .build());
+    }
+
+    @Operation(summary = "Chuyển tiếp tin nhắn", description = "Chuyển tiếp một tin nhắn sang cuộc trò chuyện khác")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chuyển tiếp tin nhắn thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy tin nhắn hoặc cuộc trò chuyện")
+    })
+    @PostMapping("/messages/{messageId}/forward/{conversationId}")
+    public ResponseEntity<ApiResponse<MessageDto>> forwardMessage(
+            @Parameter(description = "ID tin nhắn gốc", required = true) @PathVariable Long messageId,
+            @Parameter(description = "ID cuộc trò chuyện đích", required = true) @PathVariable Long conversationId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+        Long senderId = userDto.getUserId();
+
+        Message originalMessage = messageRepository.findById(messageId).orElse(null);
+        if (originalMessage == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Không tìm thấy tin nhắn gốc")
+                            .build());
+        }
+
+        if (!conversationService.isUserInConversation(conversationId, senderId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.<MessageDto>builder()
+                            .success(false)
+                            .message("Bạn không có quyền chuyển tiếp tin nhắn đến cuộc trò chuyện này")
+                            .build());
+        }
+
+        Message newMessage = new Message();
+        newMessage.setSender(userRepository.findById(senderId).orElseThrow());
+        newMessage.setConversation(conversationRepository.findById(conversationId).orElseThrow());
+        newMessage.setContent(originalMessage.getContent());
+        newMessage.setType(originalMessage.getType());
+        newMessage.setCreatedAt(LocalDateTime.now());
+
+        Message savedMessage = messageRepository.save(newMessage);
+        MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
+        messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, savedMessageDto);
+
+        return ResponseEntity.ok(ApiResponse.<MessageDto>builder()
+                .success(true)
+                .message("Chuyển tiếp tin nhắn thành công")
+                .payload(savedMessageDto)
+                .build());
     }
 
     public static class ConversationRequest {
