@@ -141,10 +141,17 @@ public class ConversationController {
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 List<MessageDto> messages = conversationService.getMessagesByConversationId(conversationId, userId);
+
+                // Kiểm tra xem cuộc trò chuyện có bị chặn hay không
+                boolean isBlocked = conversationService.isConversationBlocked(conversationId);
+                boolean isBlockedByMe = conversationService.isBlockedByUser(conversationId, userId);
+
                 return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
                                 .success(true)
                                 .message("Lấy tin nhắn thành công")
                                 .payload(messages)
+                                .data("isBlocked", isBlocked)
+                                .data("isBlockedByMe", isBlockedByMe)
                                 .build());
         }
 

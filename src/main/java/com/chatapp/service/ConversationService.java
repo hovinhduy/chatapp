@@ -255,4 +255,8 @@ public class ConversationService {
         public boolean isConversationBlocked(Long conversationId) {
                 return conversationBlockRepository.existsByConversation_Id(conversationId);
         }
+
+        public boolean isBlockedByUser(Long conversationId, Long userId) {
+                return conversationBlockRepository.existsByConversation_IdAndUser_UserId(conversationId, userId);
+        }
 }
