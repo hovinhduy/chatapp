@@ -172,6 +172,15 @@ public class ConversationController {
                                                         .build());
                 }
 
+                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
+                if (conversationService.isConversationBlocked(conversationId)) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                        .body(ApiResponse.<MessageDto>builder()
+                                                        .success(false)
+                                                        .message("Tin nhắn đã bị chặn trong cuộc trò chuyện này")
+                                                        .build());
+                }
+
                 Message message = new Message();
                 message.setSender(userRepository.findById(senderId).orElseThrow());
                 message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
@@ -204,6 +213,11 @@ public class ConversationController {
 
                 if (!conversationService.isUserInConversation(conversationId, sender.getUserId())) {
                         throw new AccessDeniedException("Bạn không phải là thành viên của cuộc trò chuyện này");
+                }
+
+                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
+                if (conversationService.isConversationBlocked(conversationId)) {
+                        throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
                 }
 
                 Message message = new Message();
@@ -399,6 +413,15 @@ public class ConversationController {
                                                                 .build());
                         }
 
+                        // Kiểm tra nếu cuộc trò chuyện đã bị chặn
+                        if (conversationService.isConversationBlocked(conversationId)) {
+                                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                                .body(ApiResponse.<List<MessageDto>>builder()
+                                                                .success(false)
+                                                                .message("Tin nhắn đã bị chặn trong cuộc trò chuyện này")
+                                                                .build());
+                        }
+
                         List<MessageDto> savedMessages = new ArrayList<>();
 
                         for (MultipartFile file : files) {
@@ -458,6 +481,11 @@ public class ConversationController {
                         throw new AccessDeniedException("Bạn không có quyền gửi file trong cuộc trò chuyện này");
                 }
 
+                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
+                if (conversationService.isConversationBlocked(conversationId)) {
+                        throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
+                }
+
                 List<MessageDto> messages = new ArrayList<>();
 
                 for (MultipartFile file : files) {
@@ -498,6 +526,43 @@ public class ConversationController {
                 } else {
                         return MessageType.DOCUMENT;
                 }
+        }
+
+        // Thêm endpoint chặn tin nhắn
+        @Operation(summary = "Chặn tin nhắn", description = "Chặn tin nhắn trong cuộc trò chuyện 1-1")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chặn tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền chặn tin nhắn"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+        })
+        @PostMapping("/{conversationId}/block")
+        public ResponseEntity<ApiResponse<Void>> blockConversation(
+                        @PathVariable Long conversationId,
+                        @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                conversationService.blockConversation(conversationId, userId);
+                return ResponseEntity.ok(ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Chặn tin nhắn thành công")
+                                .build());
+        }
+
+        @Operation(summary = "Bỏ chặn tin nhắn", description = "Bỏ chặn tin nhắn trong cuộc trò chuyện 1-1")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Bỏ chặn tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền bỏ chặn tin nhắn"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+        })
+        @DeleteMapping("/{conversationId}/block")
+        public ResponseEntity<ApiResponse<Void>> unblockConversation(
+                        @PathVariable Long conversationId,
+                        @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                conversationService.unblockConversation(conversationId, userId);
+                return ResponseEntity.ok(ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Bỏ chặn tin nhắn thành công")
+                                .build());
         }
 
         public static class ConversationRequest {
