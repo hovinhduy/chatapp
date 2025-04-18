@@ -5,5 +5,5 @@ import org.springframework.stereotype.Repository;
 import com.chatapp.model.Attachments;
 
 @Repository
-public interface AttachmentsRepository extends JpaRepository<Attachments, String> {
+public interface AttachmentsRepository extends JpaRepository<Attachments, Long> {
 }
