@@ -22,12 +22,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Set;
+import java.util.ArrayList;
 
 @Service
 public class ConversationService {
@@ -168,6 +171,40 @@ public class ConversationService {
                 return messages.stream()
                                 .map(this::mapToMessageDto)
                                 .collect(Collectors.toList());
+        }
+
+        public Page<MessageDto> getPagedMessagesByConversationId(Long conversationId, Long userId, Pageable pageable) {
+                // Kiểm tra xem người dùng có trong cuộc trò chuyện không
+                boolean isParticipant = conversationUserRepository.existsByConversationIdAndUserId(conversationId,
+                                userId);
+                if (!isParticipant) {
+                        throw new ResourceNotFoundException(
+                                        "Không tìm thấy cuộc trò chuyện hoặc người dùng không phải là thành viên");
+                }
+
+                // Lấy danh sách tin nhắn đã xóa của người dùng
+                User user = userRepository.findById(userId).orElse(null);
+                List<Long> deletedMessageIds = new ArrayList<>();
+                if (user != null) {
+                        deletedMessageIds = deletedMessageRepository.findByUser(user)
+                                        .stream().map(dm -> dm.getMessage().getMessageId()).toList();
+                }
+
+                // Lọc tin nhắn đã bị xóa trên server trước khi trả về client
+                final List<Long> finalDeletedMessageIds = deletedMessageIds;
+
+                // Lấy tin nhắn theo trang, sắp xếp từ mới đến cũ
+                Page<Message> messagesPage = messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId,
+                                pageable);
+
+                // Map sang DTO và bỏ qua các tin nhắn đã xóa
+                return messagesPage.map(message -> {
+                        if (finalDeletedMessageIds.contains(message.getMessageId())) {
+                                // Nếu tin nhắn đã bị xóa bởi người dùng này, trả về null
+                                return null;
+                        }
+                        return mapToMessageDto(message);
+                }).map(dto -> dto); // Chỉ giữ lại các tin nhắn không null
         }
 
         private ConversationDto mapToDto(Conversation conversation) {

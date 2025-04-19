@@ -42,6 +42,9 @@ import com.chatapp.service.MessageService;
 import com.chatapp.model.Attachments;
 import com.chatapp.service.AttachmentsService;
 import java.util.ArrayList;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -149,6 +152,40 @@ public class ConversationController {
                 boolean isBlockedByMe = conversationService.isBlockedByUser(conversationId, userId);
 
                 return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
+                                .success(true)
+                                .message("Lấy tin nhắn thành công")
+                                .payload(messages)
+                                .data("isBlocked", isBlocked)
+                                .data("isBlockedByMe", isBlockedByMe)
+                                .build());
+        }
+
+        @Operation(summary = "Lấy tin nhắn cuộc trò chuyện có phân trang", description = "Lấy tin nhắn trong một cuộc trò chuyện có phân trang")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+        })
+        @GetMapping("/{conversationId}/messages/paged")
+        public ResponseEntity<ApiResponse<Page<MessageDto>>> getPagedMessages(
+                        @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
+                        @Parameter(description = "Số trang (bắt đầu từ 0)", required = false) @RequestParam(defaultValue = "0") int page,
+                        @Parameter(description = "Kích thước trang", required = false) @RequestParam(defaultValue = "20") int size,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+
+                // Tạo đối tượng Pageable từ tham số page và size
+                Pageable pageable = PageRequest.of(page, size);
+
+                // Lấy tin nhắn có phân trang
+                Page<MessageDto> messages = conversationService.getPagedMessagesByConversationId(conversationId, userId,
+                                pageable);
+
+                // Kiểm tra xem cuộc trò chuyện có bị chặn hay không
+                boolean isBlocked = conversationService.isConversationBlocked(conversationId);
+                boolean isBlockedByMe = conversationService.isBlockedByUser(conversationId, userId);
+
+                return ResponseEntity.ok(ApiResponse.<Page<MessageDto>>builder()
                                 .success(true)
                                 .message("Lấy tin nhắn thành công")
                                 .payload(messages)
@@ -408,9 +445,7 @@ public class ConversationController {
         @PostMapping(value = "/{conversationId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         public ResponseEntity<ApiResponse<List<MessageDto>>> uploadFile(
                         @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
-                        @Parameter(description = "Các file cần upload", required = true,
-                                content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
-                        @RequestPart("files") MultipartFile[] files,
+                        @Parameter(description = "Các file cần upload", required = true, content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE)) @RequestPart("files") MultipartFile[] files,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 try {
                         UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
