@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -24,10 +25,13 @@ public class FriendController {
 
         private final FriendService friendService;
         private final UserService userService;
+        private final SimpMessagingTemplate messagingTemplate;
 
-        public FriendController(FriendService friendService, UserService userService) {
+        public FriendController(FriendService friendService, UserService userService,
+                        SimpMessagingTemplate messagingTemplate) {
                 this.friendService = friendService;
                 this.userService = userService;
+                this.messagingTemplate = messagingTemplate;
         }
 
         @Operation(summary = "Gửi lời mời kết bạn", description = "Gửi lời mời kết bạn tới người dùng khác")
@@ -43,6 +47,10 @@ public class FriendController {
 
                 Long senderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.sendFriendRequest(senderId, userId);
+
+                // Gửi thông báo realtime đến người nhận lời mời kết bạn
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/friend-requests", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Gửi lời mời kết bạn thành công")
@@ -64,6 +72,10 @@ public class FriendController {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.acceptFriendRequest(friendshipId, userId);
+
+                // Gửi thông báo realtime đến người gửi lời mời kết bạn
+                messagingTemplate.convertAndSend("/queue/user/" + result.getSenderId() + "/friend-updates", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Chấp nhận lời mời kết bạn thành công")
@@ -85,6 +97,10 @@ public class FriendController {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.rejectFriendRequest(friendshipId, userId);
+
+                // Gửi thông báo realtime đến người gửi lời mời kết bạn
+                messagingTemplate.convertAndSend("/queue/user/" + result.getSenderId() + "/friend-updates", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Từ chối lời mời kết bạn thành công")
@@ -105,6 +121,10 @@ public class FriendController {
 
                 Long currentUserId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.blockFriend(currentUserId, userId);
+
+                // Gửi thông báo realtime đến người bị chặn
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/friend-updates", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Chặn người dùng thành công")
@@ -125,6 +145,10 @@ public class FriendController {
 
                 Long currentUserId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.unblockFriend(currentUserId, userId);
+
+                // Gửi thông báo realtime đến người được bỏ chặn
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/friend-updates", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Bỏ chặn người dùng thành công")
@@ -196,6 +220,10 @@ public class FriendController {
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.withdrawFriendRequest(friendshipId, userId);
+
+                // Gửi thông báo realtime đến người nhận lời mời kết bạn
+                messagingTemplate.convertAndSend("/queue/user/" + result.getReceiverId() + "/friend-updates", result);
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Thu hồi lời mời kết bạn thành công")
@@ -234,6 +262,16 @@ public class FriendController {
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 FriendDto result = friendService.deleteFriend(friendshipId, userId);
+
+                // Gửi thông báo realtime đến người bạn bị xóa
+                if (result.getSenderId().equals(userId)) {
+                        messagingTemplate.convertAndSend("/queue/user/" + result.getReceiverId() + "/friend-updates",
+                                        result);
+                } else {
+                        messagingTemplate.convertAndSend("/queue/user/" + result.getSenderId() + "/friend-updates",
+                                        result);
+                }
+
                 ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
                                 .success(true)
                                 .message("Xóa bạn bè thành công")

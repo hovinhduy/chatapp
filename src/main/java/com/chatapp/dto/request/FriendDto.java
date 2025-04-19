@@ -16,4 +16,6 @@ public class FriendDto {
     private UserDto user2;
     private FriendStatus status;
     private LocalDateTime createdAt;
+    private Long senderId;
+    private Long receiverId;
 }

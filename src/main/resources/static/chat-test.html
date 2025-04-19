@@ -80,6 +80,7 @@
 
     .chat-section {
       margin-top: 30px;
+      display: none;
     }
 
     .user-info {
@@ -91,113 +92,139 @@
       border-radius: 4px;
     }
 
-    #logged-user {
-      font-weight: bold;
-      margin: 0 10px;
-    }
-
-    #logout-btn {
-      margin-left: auto;
-      background-color: #f44336;
-    }
-
-    #logout-btn:hover {
-      background-color: #d32f2f;
+    .user-info span {
+      margin-right: auto;
     }
 
     .chat-container {
       display: flex;
-      height: 600px;
       border: 1px solid #ddd;
-      border-radius: 5px;
-      overflow: hidden;
+      border-radius: 4px;
+      height: 600px;
     }
 
-    .conversations {
+    .sidebar {
       width: 30%;
       border-right: 1px solid #ddd;
-      padding: 15px;
-      overflow-y: auto;
-      background-color: #f9f9f9;
+      display: flex;
+      flex-direction: column;
     }
 
-    .conversations h3 {
-      margin-bottom: 10px;
-      padding-bottom: 5px;
+    .tabs {
+      display: flex;
       border-bottom: 1px solid #ddd;
     }
 
-    #friends-list,
-    #conversations-list {
-      margin-bottom: 20px;
+    .tab {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #f9f9f9;
+      flex: 1;
+      text-align: center;
+    }
+
+    .tab.active {
+      background-color: #fff;
+      border-bottom: 2px solid #4caf50;
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .friends-list,
+    .conversations-list,
+    .friend-requests-list,
+    .pending-friends-list,
+    .search-results {
+      padding: 10px;
+      overflow-y: auto;
     }
 
     .friend-item,
-    .conversation-item {
+    .conversation-item,
+    .friend-request-item,
+    .sent-request-item,
+    .user-item {
       padding: 10px;
-      margin-bottom: 5px;
-      border-radius: 4px;
+      border-bottom: 1px solid #f1f1f1;
       cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .friend-item:hover,
-    .conversation-item:hover {
-      background-color: #e9e9e9;
+    .conversation-item:hover,
+    .user-item:hover {
+      background-color: #f9f9f9;
     }
 
-    .active-chat {
-      background-color: #e1f5fe;
+    .friend-actions {
+      display: flex;
+      gap: 5px;
     }
 
-    .chat-window {
-      width: 70%;
+    .btn-success {
+      background-color: #4caf50;
+    }
+
+    .btn-danger {
+      background-color: #f44336;
+    }
+
+    .chat-area {
+      flex: 1;
       display: flex;
       flex-direction: column;
     }
 
     .chat-header {
-      padding: 15px;
+      padding: 10px;
       background-color: #f1f1f1;
       border-bottom: 1px solid #ddd;
-      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .messages {
       flex: 1;
-      padding: 15px;
+      padding: 10px;
       overflow-y: auto;
-      background-color: #fff;
     }
 
     .message {
-      margin-bottom: 15px;
+      margin-bottom: 10px;
       padding: 10px;
-      border-radius: 5px;
+      border-radius: 4px;
       max-width: 70%;
     }
 
-    .message-sent {
-      background-color: #e1f5fe;
+    .message.sent {
+      background-color: #dcf8c6;
+      align-self: flex-end;
       margin-left: auto;
     }
 
-    .message-received {
+    .message.received {
       background-color: #f1f1f1;
+      align-self: flex-start;
     }
 
-    .message-info {
-      font-size: 12px;
-      color: #777;
-      margin-top: 5px;
-    }
-
-    .message-input {
+    .input-area {
       display: flex;
-      padding: 15px;
+      padding: 10px;
       border-top: 1px solid #ddd;
     }
 
-    #message {
+    .input-area input {
       flex: 1;
       padding: 10px;
       border: 1px solid #ddd;
@@ -205,49 +232,126 @@
       margin-right: 10px;
     }
 
-    #send-btn {
-      width: 80px;
+    .empty-list {
+      padding: 20px;
+      text-align: center;
+      color: #999;
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 15px 20px;
+      background-color: #4caf50;
+      color: white;
+      border-radius: 4px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      z-index: 100;
+      animation: fadeIn 0.3s, fadeOut 0.3s 4.7s;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+
+    .search-form {
+      display: flex;
+      margin: 10px;
+      gap: 5px;
+    }
+
+    .search-form input {
+      flex: 1;
     }
   </style>
   <body>
     <div class="container">
       <h1>Test Chat Thời Gian Thực</h1>
 
+      <!-- Phần đăng nhập -->
       <div class="login-section">
-        <h2>Đăng nhập</h2>
         <div class="form-group">
-          <label for="phone">Số điện thoại:</label>
+          <label for="phone">Số điện thoại</label>
           <input type="text" id="phone" placeholder="Nhập số điện thoại" />
         </div>
         <div class="form-group">
-          <label for="password">Mật khẩu:</label>
+          <label for="password">Mật khẩu</label>
           <input type="password" id="password" placeholder="Nhập mật khẩu" />
         </div>
         <button id="login-btn">Đăng nhập</button>
         <div id="login-status"></div>
       </div>
 
-      <div class="chat-section" style="display: none">
+      <!-- Phần chat -->
+      <div class="chat-section">
         <div class="user-info">
-          <span>Đã đăng nhập: </span>
-          <span id="logged-user"></span>
+          <span id="logged-user">User</span>
           <button id="logout-btn">Đăng xuất</button>
         </div>
 
         <div class="chat-container">
-          <div class="conversations">
-            <h3>Danh sách bạn bè</h3>
-            <div id="friends-list"></div>
-            <h3>Cuộc trò chuyện</h3>
-            <div id="conversations-list"></div>
+          <div class="sidebar">
+            <div class="tabs">
+              <div class="tab active" data-tab="conversations">Trò chuyện</div>
+              <div class="tab" data-tab="friends">Bạn bè</div>
+              <div class="tab" data-tab="requests">Lời mời</div>
+              <div class="tab" data-tab="search">Tìm kiếm</div>
+            </div>
+
+            <!-- Tab nội dung trò chuyện -->
+            <div class="tab-content active" id="conversations-tab">
+              <div id="conversations-list" class="conversations-list"></div>
+            </div>
+
+            <!-- Tab nội dung bạn bè -->
+            <div class="tab-content" id="friends-tab">
+              <div id="friends-list" class="friends-list"></div>
+            </div>
+
+            <!-- Tab nội dung lời mời kết bạn -->
+            <div class="tab-content" id="requests-tab">
+              <h3>Lời mời nhận được</h3>
+              <div id="friend-requests-list" class="friend-requests-list"></div>
+
+              <h3>Lời mời đã gửi</h3>
+              <div id="pending-friends-list" class="pending-friends-list"></div>
+            </div>
+
+            <!-- Tab tìm kiếm người dùng -->
+            <div class="tab-content" id="search-tab">
+              <div class="search-form">
+                <input
+                  type="text"
+                  id="search-user"
+                  placeholder="Tìm kiếm người dùng"
+                />
+                <button id="search-btn">Tìm</button>
+              </div>
+              <div id="search-results" class="search-results"></div>
+            </div>
           </div>
 
-          <div class="chat-window">
+          <div class="chat-area">
             <div class="chat-header">
-              <span id="chat-with">Chọn người để chat</span>
+              <span id="chat-with">Chưa chọn cuộc trò chuyện</span>
             </div>
-            <div class="messages" id="messages"></div>
-            <div class="message-input">
+            <div id="messages" class="messages"></div>
+            <div class="input-area">
               <input
                 type="text"
                 id="message"
@@ -261,6 +365,29 @@
       </div>
     </div>
 
-    <script src="./js/chat-test.js"></script>
+    <script>
+      // JavaScript để chuyển đổi giữa các tab
+      document.querySelectorAll(".tab").forEach((tab) => {
+        tab.addEventListener("click", function () {
+          // Xóa lớp active từ tất cả các tab
+          document.querySelectorAll(".tab").forEach((t) => {
+            t.classList.remove("active");
+          });
+
+          // Xóa lớp active từ tất cả các tab content
+          document.querySelectorAll(".tab-content").forEach((content) => {
+            content.classList.remove("active");
+          });
+
+          // Thêm lớp active vào tab được chọn
+          this.classList.add("active");
+
+          // Hiển thị nội dung tab tương ứng
+          const tabName = this.getAttribute("data-tab");
+          document.getElementById(`${tabName}-tab`).classList.add("active");
+        });
+      });
+    </script>
+    <script src="js/chat-test.js"></script>
   </body>
 </html>

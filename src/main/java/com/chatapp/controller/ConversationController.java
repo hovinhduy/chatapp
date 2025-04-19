@@ -10,11 +10,13 @@ import com.chatapp.service.UserService;
 import com.chatapp.dto.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -403,10 +405,12 @@ public class ConversationController {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền gửi file trong cuộc trò chuyện này"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
         })
-        @PostMapping("/{conversationId}/upload")
+        @PostMapping(value = "/{conversationId}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         public ResponseEntity<ApiResponse<List<MessageDto>>> uploadFile(
                         @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
-                        @Parameter(description = "Files to upload", required = true) @RequestParam("files") MultipartFile[] files,
+                        @Parameter(description = "Các file cần upload", required = true,
+                                content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE))
+                        @RequestPart("files") MultipartFile[] files,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 try {
                         UserDto userDto = userService.getUserByPhone(userDetails.getUsername());

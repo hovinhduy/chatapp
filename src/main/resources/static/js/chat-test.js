@@ -18,6 +18,8 @@ const loginStatus = document.getElementById("login-status");
 const friendsList = document.getElementById("friends-list");
 const conversationsList = document.getElementById("conversations-list");
 const chatWithSpan = document.getElementById("chat-with");
+const friendRequestsList = document.getElementById("friend-requests-list");
+const pendingFriendsList = document.getElementById("pending-friends-list");
 
 // Sự kiện khi trang được tải
 document.addEventListener("DOMContentLoaded", () => {
@@ -26,6 +28,18 @@ document.addEventListener("DOMContentLoaded", () => {
   if (token) {
     fetchCurrentUser();
   }
+
+  // Thêm sự kiện tìm kiếm người dùng
+  const searchBtn = document.getElementById("search-btn");
+  searchBtn.addEventListener("click", searchUsers);
+
+  // Cho phép tìm kiếm bằng cách nhấn Enter
+  const searchInput = document.getElementById("search-user");
+  searchInput.addEventListener("keyup", function (event) {
+    if (event.key === "Enter") {
+      searchUsers();
+    }
+  });
 });
 
 // Sự kiện đăng nhập
@@ -97,9 +111,8 @@ async function fetchCurrentUser() {
       // Kết nối WebSocket sau khi đăng nhập thành công
       connectWebSocket();
 
-      // Tải danh sách bạn bè và cuộc trò chuyện
-      fetchFriends();
-      fetchConversations();
+      // Tải dữ liệu ban đầu
+      fetchInitialData();
     } else {
       localStorage.removeItem("chatToken");
       token = null;
@@ -134,6 +147,10 @@ function connectWebSocket() {
         Object.keys(conversations).forEach((conversationId) => {
           subscribeToConversation(conversationId);
         });
+
+        // Đăng ký nhận thông báo bạn bè
+        subscribeFriendRequests();
+        subscribeFriendUpdates();
       }
     },
     function (error) {
@@ -158,6 +175,99 @@ function subscribeToConversation(conversationId) {
   }
 }
 
+// Đăng ký nhận thông báo lời mời kết bạn
+function subscribeFriendRequests() {
+  if (stompClient && stompClient.connected && currentUser) {
+    stompClient.subscribe(
+      `/queue/user/${currentUser.userId}/friend-requests`,
+      function (message) {
+        const friendRequest = JSON.parse(message.body);
+        console.log("Nhận lời mời kết bạn mới:", friendRequest);
+        showNotification(
+          `Bạn có lời mời kết bạn mới từ ${friendRequest.user1.displayName}`
+        );
+        fetchPendingFriendRequests(); // Cập nhật danh sách lời mời
+      }
+    );
+    console.log(`Đã đăng ký nhận thông báo lời mời kết bạn`);
+  }
+}
+
+// Đăng ký nhận cập nhật về trạng thái bạn bè
+function subscribeFriendUpdates() {
+  if (stompClient && stompClient.connected && currentUser) {
+    stompClient.subscribe(
+      `/queue/user/${currentUser.userId}/friend-updates`,
+      function (message) {
+        const friendUpdate = JSON.parse(message.body);
+        console.log("Nhận cập nhật bạn bè:", friendUpdate);
+
+        // Xử lý các loại cập nhật dựa vào trạng thái
+        switch (friendUpdate.status) {
+          case "ACCEPTED":
+            showNotification(
+              `${getOtherUserName(
+                friendUpdate
+              )} đã chấp nhận lời mời kết bạn của bạn`
+            );
+            fetchFriends(); // Cập nhật danh sách bạn bè
+            fetchSentFriendRequests(); // Cập nhật danh sách lời mời đã gửi
+            break;
+          case "REJECTED":
+            showNotification(
+              `${getOtherUserName(
+                friendUpdate
+              )} đã từ chối lời mời kết bạn của bạn`
+            );
+            fetchSentFriendRequests(); // Cập nhật danh sách lời mời đã gửi
+            break;
+          case "BLOCKED":
+            showNotification(`${getOtherUserName(friendUpdate)} đã chặn bạn`);
+            fetchFriends(); // Cập nhật danh sách bạn bè
+            break;
+          case "PENDING":
+            // Lời mời được thu hồi hoặc đã bị xóa
+            fetchPendingFriendRequests();
+            fetchFriends();
+            break;
+          default:
+            // Cập nhật tất cả để đảm bảo UI đồng bộ
+            fetchFriends();
+            fetchPendingFriendRequests();
+            fetchSentFriendRequests();
+        }
+      }
+    );
+    console.log(`Đã đăng ký nhận cập nhật trạng thái bạn bè`);
+  }
+}
+
+// Lấy tên của user khác trong mối quan hệ bạn bè
+function getOtherUserName(friendRelation) {
+  if (currentUser) {
+    if (friendRelation.user1.userId === currentUser.userId) {
+      return friendRelation.user2.displayName;
+    } else {
+      return friendRelation.user1.displayName;
+    }
+  }
+  return "";
+}
+
+// Hiển thị thông báo
+function showNotification(message) {
+  // Tạo và hiển thị thông báo
+  const notification = document.createElement("div");
+  notification.className = "notification";
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  // Xóa thông báo sau 5 giây
+  setTimeout(() => {
+    notification.remove();
+  }, 5000);
+}
+
 // Lấy danh sách bạn bè
 async function fetchFriends() {
   try {
@@ -166,44 +276,297 @@ async function fetchFriends() {
         Authorization: `Bearer ${token}`,
       },
     });
+
     const data = await response.json();
 
     if (response.ok && data.success) {
       displayFriends(data.payload);
     }
   } catch (error) {
-    console.error("Lỗi lấy danh sách bạn bè:", error);
+    console.error("Lỗi khi lấy danh sách bạn bè:", error);
   }
 }
 
 // Hiển thị danh sách bạn bè
 function displayFriends(friends) {
-  console.log("Hiển thị danh sách bạn bè:", friends);
   friendsList.innerHTML = "";
-
   if (friends.length === 0) {
-    friendsList.innerHTML = "<p>Chưa có bạn bè</p>";
+    const emptyMessage = document.createElement("div");
+    emptyMessage.className = "empty-list";
+    emptyMessage.textContent = "Bạn chưa có bạn bè";
+    friendsList.appendChild(emptyMessage);
     return;
   }
 
   friends.forEach((friend) => {
     const otherUser =
       friend.user1.userId === currentUser.userId ? friend.user2 : friend.user1;
-
-    console.log("Hiển thị bạn bè:", otherUser);
-
     const friendItem = document.createElement("div");
     friendItem.className = "friend-item";
-    friendItem.textContent = otherUser.displayName || otherUser.phone;
     friendItem.dataset.userId = otherUser.userId;
 
-    friendItem.addEventListener("click", () => {
-      console.log("Click vào bạn bè:", otherUser);
-      startChat(otherUser);
-    });
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = otherUser.displayName || otherUser.phone;
+    friendItem.appendChild(nameSpan);
 
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "friend-actions";
+
+    const chatBtn = document.createElement("button");
+    chatBtn.textContent = "Nhắn tin";
+    chatBtn.addEventListener("click", () => startChat(otherUser));
+    actionsDiv.appendChild(chatBtn);
+
+    const unfriendBtn = document.createElement("button");
+    unfriendBtn.textContent = "Xóa bạn";
+    unfriendBtn.className = "btn-danger";
+    unfriendBtn.addEventListener("click", () => deleteFriend(friend.id));
+    actionsDiv.appendChild(unfriendBtn);
+
+    friendItem.appendChild(actionsDiv);
     friendsList.appendChild(friendItem);
   });
+}
+
+// Xóa bạn bè
+async function deleteFriend(friendshipId) {
+  if (!confirm("Bạn có chắc muốn xóa người bạn này không?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/friends/${friendshipId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      fetchFriends();
+      showNotification("Đã xóa bạn bè thành công");
+    } else {
+      console.error("Lỗi khi xóa bạn bè:", data.message);
+    }
+  } catch (error) {
+    console.error("Lỗi khi xóa bạn bè:", error);
+  }
+}
+
+// Lấy danh sách lời mời kết bạn đang chờ
+async function fetchPendingFriendRequests() {
+  try {
+    const response = await fetch("/api/friends/pending", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      displayPendingFriendRequests(data.payload);
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách lời mời kết bạn:", error);
+  }
+}
+
+// Hiển thị danh sách lời mời kết bạn đang chờ
+function displayPendingFriendRequests(requests) {
+  friendRequestsList.innerHTML = "";
+
+  if (requests.length === 0) {
+    const emptyMessage = document.createElement("div");
+    emptyMessage.className = "empty-list";
+    emptyMessage.textContent = "Không có lời mời kết bạn nào";
+    friendRequestsList.appendChild(emptyMessage);
+    return;
+  }
+
+  requests.forEach((request) => {
+    const requestItem = document.createElement("div");
+    requestItem.className = "friend-request-item";
+    requestItem.dataset.userId = request.user1.userId;
+    requestItem.dataset.requestId = request.id;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = request.user1.displayName || request.user1.phone;
+    requestItem.appendChild(nameSpan);
+
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "friend-actions";
+
+    const acceptBtn = document.createElement("button");
+    acceptBtn.textContent = "Chấp nhận";
+    acceptBtn.className = "btn-success";
+    acceptBtn.addEventListener("click", () => acceptFriendRequest(request.id));
+    actionsDiv.appendChild(acceptBtn);
+
+    const rejectBtn = document.createElement("button");
+    rejectBtn.textContent = "Từ chối";
+    rejectBtn.className = "btn-danger";
+    rejectBtn.addEventListener("click", () => rejectFriendRequest(request.id));
+    actionsDiv.appendChild(rejectBtn);
+
+    requestItem.appendChild(actionsDiv);
+    friendRequestsList.appendChild(requestItem);
+  });
+}
+
+// Chấp nhận lời mời kết bạn
+async function acceptFriendRequest(friendshipId) {
+  try {
+    const response = await fetch(`/api/friends/accept/${friendshipId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      fetchPendingFriendRequests();
+      fetchFriends();
+      showNotification("Đã chấp nhận lời mời kết bạn");
+    } else {
+      console.error("Lỗi khi chấp nhận lời mời kết bạn:", data.message);
+    }
+  } catch (error) {
+    console.error("Lỗi khi chấp nhận lời mời kết bạn:", error);
+  }
+}
+
+// Từ chối lời mời kết bạn
+async function rejectFriendRequest(friendshipId) {
+  try {
+    const response = await fetch(`/api/friends/reject/${friendshipId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      fetchPendingFriendRequests();
+      showNotification("Đã từ chối lời mời kết bạn");
+    } else {
+      console.error("Lỗi khi từ chối lời mời kết bạn:", data.message);
+    }
+  } catch (error) {
+    console.error("Lỗi khi từ chối lời mời kết bạn:", error);
+  }
+}
+
+// Lấy danh sách lời mời kết bạn đã gửi
+async function fetchSentFriendRequests() {
+  try {
+    const response = await fetch("/api/friends/sent", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      displaySentFriendRequests(data.payload);
+    }
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách lời mời đã gửi:", error);
+  }
+}
+
+// Hiển thị danh sách lời mời kết bạn đã gửi
+function displaySentFriendRequests(requests) {
+  pendingFriendsList.innerHTML = "";
+
+  if (requests.length === 0) {
+    const emptyMessage = document.createElement("div");
+    emptyMessage.className = "empty-list";
+    emptyMessage.textContent = "Bạn chưa gửi lời mời kết bạn nào";
+    pendingFriendsList.appendChild(emptyMessage);
+    return;
+  }
+
+  requests.forEach((request) => {
+    const requestItem = document.createElement("div");
+    requestItem.className = "sent-request-item";
+    requestItem.dataset.userId = request.user2.userId;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = request.user2.displayName || request.user2.phone;
+    requestItem.appendChild(nameSpan);
+
+    const withdrawBtn = document.createElement("button");
+    withdrawBtn.textContent = "Thu hồi";
+    withdrawBtn.className = "btn-danger";
+    withdrawBtn.addEventListener("click", () =>
+      withdrawFriendRequest(request.id)
+    );
+    requestItem.appendChild(withdrawBtn);
+
+    pendingFriendsList.appendChild(requestItem);
+  });
+}
+
+// Thu hồi lời mời kết bạn
+async function withdrawFriendRequest(friendshipId) {
+  try {
+    const response = await fetch(`/api/friends/withdraw/${friendshipId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      fetchSentFriendRequests();
+      showNotification("Đã thu hồi lời mời kết bạn");
+    } else {
+      console.error("Lỗi khi thu hồi lời mời kết bạn:", data.message);
+    }
+  } catch (error) {
+    console.error("Lỗi khi thu hồi lời mời kết bạn:", error);
+  }
+}
+
+// Gửi lời mời kết bạn
+async function sendFriendRequest(userId) {
+  try {
+    const response = await fetch(`/api/friends/request/${userId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      fetchSentFriendRequests();
+      showNotification("Đã gửi lời mời kết bạn");
+    } else {
+      console.error("Lỗi khi gửi lời mời kết bạn:", data.message);
+    }
+  } catch (error) {
+    console.error("Lỗi khi gửi lời mời kết bạn:", error);
+  }
+}
+
+// Cập nhật tất cả thông tin ban đầu
+async function fetchInitialData() {
+  await fetchFriends();
+  await fetchPendingFriendRequests();
+  await fetchSentFriendRequests();
+  await fetchConversations();
 }
 
 // Thêm hàm mới để bắt đầu chat với người dùng
@@ -498,4 +861,192 @@ function logout() {
   document.getElementById("phone").value = "";
   document.getElementById("password").value = "";
   loginStatus.textContent = "";
+}
+
+// Tìm kiếm người dùng
+async function searchUsers() {
+  const searchInput = document.getElementById("search-user");
+  const searchTerm = searchInput.value.trim();
+  const searchResults = document.getElementById("search-results");
+
+  if (!searchTerm) {
+    searchResults.innerHTML =
+      "<div class='empty-list'>Vui lòng nhập từ khóa tìm kiếm</div>";
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `/api/users/by-phone?phone=${encodeURIComponent(searchTerm)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Xử lý trường hợp data.payload là một đối tượng đơn lẻ (không phải mảng)
+      if (data.payload && !Array.isArray(data.payload)) {
+        displaySearchResults([data.payload]); // Chuyển đối tượng đơn lẻ thành mảng
+      } else {
+        displaySearchResults(data.payload);
+      }
+    } else {
+      searchResults.innerHTML = `<div class='empty-list'>Lỗi: ${data.message}</div>`;
+    }
+  } catch (error) {
+    console.error("Lỗi khi tìm kiếm người dùng:", error);
+    searchResults.innerHTML =
+      "<div class='empty-list'>Lỗi kết nối máy chủ</div>";
+  }
+}
+
+// Hiển thị kết quả tìm kiếm người dùng
+function displaySearchResults(users) {
+  const searchResults = document.getElementById("search-results");
+  searchResults.innerHTML = "";
+
+  if (!users || users.length === 0) {
+    searchResults.innerHTML =
+      "<div class='empty-list'>Không tìm thấy người dùng</div>";
+    return;
+  }
+
+  // Lấy danh sách bạn bè hiện tại để kiểm tra
+  fetchFriends().then(() => {
+    fetchPendingFriendRequests().then(() => {
+      fetchSentFriendRequests().then(() => {
+        users.forEach((user) => {
+          // Bỏ qua người dùng hiện tại
+          if (user.userId === currentUser.userId) {
+            return;
+          }
+
+          const userItem = document.createElement("div");
+          userItem.className = "user-item";
+
+          const nameSpan = document.createElement("span");
+          nameSpan.textContent = user.displayName || user.phone;
+          userItem.appendChild(nameSpan);
+
+          const actionsDiv = document.createElement("div");
+          actionsDiv.className = "friend-actions";
+
+          // Kiểm tra xem người dùng này đã là bạn bè chưa
+          const isFriend = checkIfFriend(user.userId);
+          // Kiểm tra xem đã gửi lời mời kết bạn chưa
+          const hasSentRequest = checkIfSentRequest(user.userId);
+          // Kiểm tra xem đã nhận lời mời kết bạn từ người này chưa
+          const hasReceivedRequest = checkIfReceivedRequest(user.userId);
+
+          if (isFriend) {
+            // Nếu đã là bạn bè
+            const chatBtn = document.createElement("button");
+            chatBtn.textContent = "Nhắn tin";
+            chatBtn.addEventListener("click", () => startChat(user));
+            actionsDiv.appendChild(chatBtn);
+          } else if (hasSentRequest) {
+            // Nếu đã gửi lời mời kết bạn
+            const pendingBtn = document.createElement("button");
+            pendingBtn.textContent = "Đã gửi lời mời";
+            pendingBtn.disabled = true;
+            actionsDiv.appendChild(pendingBtn);
+          } else if (hasReceivedRequest) {
+            // Nếu đã nhận lời mời kết bạn
+            const acceptBtn = document.createElement("button");
+            acceptBtn.textContent = "Chấp nhận";
+            acceptBtn.className = "btn-success";
+            acceptBtn.addEventListener("click", () => {
+              // Cần tìm ID của lời mời
+              const request = findFriendRequest(user.userId);
+              if (request) {
+                acceptFriendRequest(request.id);
+              }
+            });
+            actionsDiv.appendChild(acceptBtn);
+          } else {
+            // Nếu chưa có mối quan hệ bạn bè
+            const addBtn = document.createElement("button");
+            addBtn.textContent = "Kết bạn";
+            addBtn.addEventListener("click", () =>
+              sendFriendRequest(user.userId)
+            );
+            actionsDiv.appendChild(addBtn);
+          }
+
+          userItem.appendChild(actionsDiv);
+          searchResults.appendChild(userItem);
+        });
+      });
+    });
+  });
+}
+
+// Kiểm tra xem một người dùng đã là bạn bè chưa
+function checkIfFriend(userId) {
+  const friendsList = document.getElementById("friends-list");
+  const friends = Array.from(friendsList.querySelectorAll(".friend-item"));
+
+  // Duyệt qua danh sách bạn bè để kiểm tra
+  for (const friend of friends) {
+    const friendUserId = friend.dataset.userId;
+    if (friendUserId == userId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Kiểm tra xem đã gửi lời mời kết bạn đến người dùng này chưa
+function checkIfSentRequest(userId) {
+  const pendingList = document.getElementById("pending-friends-list");
+  const sentRequests = Array.from(
+    pendingList.querySelectorAll(".sent-request-item")
+  );
+
+  for (const request of sentRequests) {
+    const requestUserId = request.dataset.userId;
+    if (requestUserId == userId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Kiểm tra xem đã nhận lời mời kết bạn từ người dùng này chưa
+function checkIfReceivedRequest(userId) {
+  const requestsList = document.getElementById("friend-requests-list");
+  const receivedRequests = Array.from(
+    requestsList.querySelectorAll(".friend-request-item")
+  );
+
+  for (const request of receivedRequests) {
+    const requestUserId = request.dataset.userId;
+    if (requestUserId == userId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Tìm lời mời kết bạn từ một người dùng cụ thể
+function findFriendRequest(userId) {
+  const requestsList = document.getElementById("friend-requests-list");
+  const receivedRequests = Array.from(
+    requestsList.querySelectorAll(".friend-request-item")
+  );
+
+  for (const request of receivedRequests) {
+    if (request.dataset.userId == userId) {
+      return { id: request.dataset.requestId };
+    }
+  }
+
+  return null;
 }

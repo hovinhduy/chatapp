@@ -353,6 +353,10 @@ public class FriendService {
         dto.setStatus(friend.getStatus());
         dto.setCreatedAt(friend.getCreatedAt());
 
+        // Thiết lập senderId và receiverId cho WebSocket notification
+        dto.setSenderId(friend.getUser1().getUserId());
+        dto.setReceiverId(friend.getUser2().getUserId());
+
         return dto;
     }
 }
