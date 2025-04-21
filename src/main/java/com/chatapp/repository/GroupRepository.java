@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface GroupRepository extends JpaRepository<Group, Long> {
@@ -14,4 +15,6 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 
     @Query("SELECT g FROM Group g JOIN g.members m WHERE m.user.userId = :userId AND LOWER(g.name) LIKE LOWER(CONCAT('%', :name, '%'))")
     List<Group> findGroupsByUserIdAndNameContainingIgnoreCase(Long userId, String name);
+
+    Optional<Group> findByConversationId(Long conversationId);
 }

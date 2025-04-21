@@ -19,4 +19,8 @@ public class ConversationDto {
     private List<UserDto> participants;
     private LocalDateTime createdAt;
 
+    // Thông tin bổ sung cho nhóm
+    private Long groupId;
+    private String groupName;
+    private String groupAvatarUrl;
 }

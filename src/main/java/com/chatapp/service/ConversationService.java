@@ -18,6 +18,8 @@ import com.chatapp.repository.UserRepository;
 import com.chatapp.repository.DeletedMessageRepository;
 import com.chatapp.repository.ConversationBlockRepository;
 import com.chatapp.model.ConversationBlock;
+import com.chatapp.repository.GroupRepository;
+import com.chatapp.model.Group;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,9 @@ public class ConversationService {
 
         @Autowired
         private ConversationBlockRepository conversationBlockRepository;
+
+        @Autowired
+        private GroupRepository groupRepository;
 
         public List<ConversationDto> getConversationsByUserId(Long userId) {
                 User user = userRepository.findById(userId)
@@ -213,14 +218,35 @@ public class ConversationService {
                 dto.setType(conversation.getType());
                 dto.setCreatedAt(conversation.getCreatedAt());
 
-                // Lấy danh sách người tham gia
-                List<ConversationUser> conversationUsers = conversationUserRepository
-                                .findByConversationId(conversation.getId());
-                List<UserDto> participants = conversationUsers.stream()
-                                .map(cu -> mapUserToDto(cu.getUser()))
-                                .collect(Collectors.toList());
+                // Xử lý khác nhau tùy theo loại cuộc trò chuyện
+                if (conversation.getType() == ConversationType.ONE_TO_ONE) {
+                        // Đối với cuộc trò chuyện 1-1, lấy danh sách người tham gia như cũ
+                        List<ConversationUser> conversationUsers = conversationUserRepository
+                                        .findByConversationId(conversation.getId());
+                        List<UserDto> participants = conversationUsers.stream()
+                                        .map(cu -> mapUserToDto(cu.getUser()))
+                                        .collect(Collectors.toList());
+                        dto.setParticipants(participants);
+                } else if (conversation.getType() == ConversationType.GROUP) {
+                        // Đối với cuộc trò chuyện nhóm, lấy thông tin nhóm
+                        Optional<Group> groupOpt = groupRepository.findByConversationId(conversation.getId());
+                        if (groupOpt.isPresent()) {
+                                Group group = groupOpt.get();
+                                // Thiết lập thông tin nhóm cho DTO
+                                dto.setGroupId(group.getGroupId());
+                                dto.setGroupName(group.getName());
+                                dto.setGroupAvatarUrl(group.getAvatarUrl());
+                        }
 
-                dto.setParticipants(participants);
+                        // Vẫn lấy danh sách người tham gia cho cả GROUP
+                        List<ConversationUser> conversationUsers = conversationUserRepository
+                                        .findByConversationId(conversation.getId());
+                        List<UserDto> participants = conversationUsers.stream()
+                                        .map(cu -> mapUserToDto(cu.getUser()))
+                                        .collect(Collectors.toList());
+                        dto.setParticipants(participants);
+                }
+
                 return dto;
         }
 
