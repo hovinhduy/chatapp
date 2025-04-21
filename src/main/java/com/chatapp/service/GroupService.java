@@ -3,18 +3,22 @@ package com.chatapp.service;
 import com.chatapp.dto.request.GroupDto;
 import com.chatapp.dto.request.GroupMemberDto;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.dto.request.GroupCreateDto;
+import com.chatapp.enums.FriendStatus;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.Group;
 import com.chatapp.model.GroupMember;
 import com.chatapp.model.User;
+import com.chatapp.repository.FriendRepository;
 import com.chatapp.repository.GroupMemberRepository;
 import com.chatapp.repository.GroupRepository;
 import com.chatapp.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +31,7 @@ public class GroupService {
         private final GroupRepository groupRepository;
         private final GroupMemberRepository groupMemberRepository;
         private final UserRepository userRepository;
+        private final FriendRepository friendRepository;
 
         /**
          * Constructor để dependency injection
@@ -35,65 +40,146 @@ public class GroupService {
          * @param groupMemberRepository Repository xử lý thao tác với database của
          *                              GroupMember
          * @param userRepository        Repository xử lý thao tác với database của User
+         * @param friendRepository      Repository xử lý thao tác với database của
+         *                              Friend
          */
         public GroupService(GroupRepository groupRepository, GroupMemberRepository groupMemberRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository, FriendRepository friendRepository) {
                 this.groupRepository = groupRepository;
                 this.groupMemberRepository = groupMemberRepository;
                 this.userRepository = userRepository;
+                this.friendRepository = friendRepository;
         }
 
         /**
-         * Tạo mới nhóm chat
+         * Tạo mới nhóm chat từ GroupCreateDto
          * 
-         * @param groupDto  Đối tượng chứa thông tin nhóm cần tạo
-         * @param creatorId ID của người tạo nhóm
+         * @param groupCreateDto Đối tượng chứa thông tin nhóm cần tạo (đã được rút gọn)
+         * @param creatorId      ID của người tạo nhóm
          * @return GroupDto Thông tin nhóm đã được tạo
          * @throws ResourceNotFoundException Nếu không tìm thấy người tạo nhóm
          */
         @Transactional
-        public GroupDto createGroup(GroupDto groupDto, Long creatorId) {
+        public GroupDto createGroup(GroupCreateDto groupCreateDto, Long creatorId) {
                 // Kiểm tra xem có ít nhất 2 thành viên khác được thêm vào nhóm
-                if (groupDto.getMembers() == null || groupDto.getMembers().size() < 2) {
-                        throw new BadRequestException("Group must have at least 2 members besides the creator");
+                if (groupCreateDto.getMemberIds() == null || groupCreateDto.getMemberIds().size() < 2) {
+                        throw new BadRequestException("Nhóm phải có ít nhất 2 thành viên ngoài người tạo");
                 }
 
                 User creator = userRepository.findById(creatorId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "User not found with id: " + creatorId));
+                                                "Không tìm thấy người dùng với id: " + creatorId));
 
                 Group group = new Group();
-                group.setName(groupDto.getName());
-                group.setAvatarUrl(groupDto.getAvatarUrl());
+                group.setName(groupCreateDto.getName());
+                group.setAvatarUrl(groupCreateDto.getAvatarUrl());
 
                 Group savedGroup = groupRepository.save(group);
 
-                // Add creator as admin
+                // Thêm người tạo làm admin
                 GroupMember groupMember = new GroupMember();
                 groupMember.setGroup(savedGroup);
                 groupMember.setUser(creator);
                 groupMember.setRole(true); // Admin role
                 groupMemberRepository.save(groupMember);
 
-                // Thêm các thành viên khác từ danh sách
-                for (GroupMemberDto memberDto : groupDto.getMembers()) {
-                        User member = userRepository.findById(memberDto.getUser().getUserId())
-                                        .orElseThrow(() -> new ResourceNotFoundException(
-                                                        "User not found with id: " + memberDto.getUser().getUserId()));
+                // Danh sách thành viên Group
+                List<GroupMemberDto> groupMembers = new ArrayList<>();
 
-                        // Kiểm tra không trùng với người tạo
-                        if (member.getUserId().equals(creatorId)) {
+                // Thêm chi tiết admin vào danh sách thành viên để trả về
+                GroupMemberDto adminMemberDto = new GroupMemberDto();
+                adminMemberDto.setId(groupMember.getId());
+                adminMemberDto.setGroupId(savedGroup.getGroupId());
+                UserDto adminUserDto = new UserDto();
+                adminUserDto.setUserId(creator.getUserId());
+                adminUserDto.setDisplayName(creator.getDisplayName());
+                adminUserDto.setPhone(creator.getPhone());
+                adminUserDto.setAvatarUrl(creator.getAvatarUrl());
+                adminMemberDto.setUser(adminUserDto);
+                adminMemberDto.setAdmin(true);
+                groupMembers.add(adminMemberDto);
+
+                // Thêm các thành viên khác từ danh sách ID
+                for (Long memberId : groupCreateDto.getMemberIds()) {
+                        // Bỏ qua nếu là ID của người tạo
+                        if (memberId.equals(creatorId)) {
                                 continue;
+                        }
+
+                        User member = userRepository.findById(memberId)
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Không tìm thấy người dùng với id: " + memberId));
+
+                        // Kiểm tra xem người được thêm có phải là bạn bè không
+                        boolean isFriend = friendRepository.findByUsers(creator, member)
+                                        .map(friend -> friend.getStatus() == FriendStatus.ACCEPTED)
+                                        .orElse(false);
+
+                        if (!isFriend) {
+                                throw new BadRequestException(
+                                                "Người dùng với id " + memberId + " không phải là bạn bè của bạn");
                         }
 
                         GroupMember newMember = new GroupMember();
                         newMember.setGroup(savedGroup);
                         newMember.setUser(member);
                         newMember.setRole(false); // Regular member
-                        groupMemberRepository.save(newMember);
+                        GroupMember savedMember = groupMemberRepository.save(newMember);
+
+                        // Thêm chi tiết thành viên vào danh sách thành viên để trả về
+                        GroupMemberDto memberDto = new GroupMemberDto();
+                        memberDto.setId(savedMember.getId());
+                        memberDto.setGroupId(savedGroup.getGroupId());
+                        UserDto userDto = new UserDto();
+                        userDto.setUserId(member.getUserId());
+                        userDto.setDisplayName(member.getDisplayName());
+                        userDto.setPhone(member.getPhone());
+                        userDto.setAvatarUrl(member.getAvatarUrl());
+                        memberDto.setUser(userDto);
+                        memberDto.setAdmin(false);
+                        groupMembers.add(memberDto);
                 }
 
-                return mapToDto(savedGroup);
+                GroupDto result = new GroupDto();
+                result.setGroupId(savedGroup.getGroupId());
+                result.setName(savedGroup.getName());
+                result.setAvatarUrl(savedGroup.getAvatarUrl());
+                result.setCreatedAt(savedGroup.getCreatedAt());
+                result.setMembers(groupMembers);
+
+                return result;
+        }
+
+        /**
+         * Tạo mới nhóm chat từ GroupDto (phương thức cũ - để tương thích ngược)
+         * 
+         * @param groupDto  Đối tượng chứa thông tin nhóm cần tạo
+         * @param creatorId ID của người tạo nhóm
+         * @return GroupDto Thông tin nhóm đã được tạo
+         * @throws ResourceNotFoundException Nếu không tìm thấy người tạo nhóm
+         * @deprecated Sử dụng {@link #createGroup(GroupCreateDto, Long)} thay thế
+         */
+        @Transactional
+        @Deprecated
+        public GroupDto createGroup(GroupDto groupDto, Long creatorId) {
+                // Tạo đối tượng GroupCreateDto từ GroupDto
+                GroupCreateDto groupCreateDto = new GroupCreateDto();
+                groupCreateDto.setName(groupDto.getName());
+                groupCreateDto.setAvatarUrl(groupDto.getAvatarUrl());
+
+                // Lấy danh sách user ID từ các thành viên (nếu có)
+                List<Long> memberIds = new ArrayList<>();
+                if (groupDto.getMembers() != null) {
+                        for (GroupMemberDto memberDto : groupDto.getMembers()) {
+                                if (memberDto.getUser() != null && memberDto.getUser().getUserId() != null) {
+                                        memberIds.add(memberDto.getUser().getUserId());
+                                }
+                        }
+                }
+                groupCreateDto.setMemberIds(memberIds);
+
+                // Gọi phương thức mới
+                return createGroup(groupCreateDto, creatorId);
         }
 
         /**

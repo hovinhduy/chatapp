@@ -1,12 +1,13 @@
 package com.chatapp.controller;
 
+import com.chatapp.dto.request.GroupCreateDto;
 import com.chatapp.dto.request.GroupDto;
+import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.service.FileStorageService;
 import com.chatapp.service.GroupService;
 import com.chatapp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,7 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/groups")
-@Tag(name = "Group Management", description = "APIs for managing chat groups")
+@Tag(name = "Group Management", description = "Các API quản lý nhóm chat")
 @SecurityRequirement(name = "bearerAuth")
 public class GroupController {
 
@@ -36,81 +37,127 @@ public class GroupController {
                 this.fileStorageService = fileStorageService;
         }
 
-        @Operation(summary = "Create group", description = "Creates a new chat group")
+        @Operation(summary = "Tạo nhóm", description = "Tạo một nhóm chat mới với bạn bè làm thành viên")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Group created successfully"),
-                        @ApiResponse(responseCode = "400", description = "Invalid group data")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu nhóm không hợp lệ")
         })
         @PostMapping
-        public ResponseEntity<GroupDto> createGroup(
-                        @Parameter(description = "Group details", required = true) @RequestBody GroupDto groupDto,
+        public ResponseEntity<ApiResponse<GroupDto>> createGroup(
+                        @Parameter(description = "Thông tin chi tiết nhóm", required = true) @RequestBody GroupCreateDto groupCreateDto,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(groupService.createGroup(groupDto, userId));
+                GroupDto createdGroup = groupService.createGroup(groupCreateDto, userId);
+
+                ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
+                                .success(true)
+                                .message("Nhóm đã được tạo thành công")
+                                .payload(createdGroup)
+                                .id(createdGroup.getGroupId())
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Get group by ID", description = "Retrieves a group's details by its ID")
+        @Operation(summary = "Lấy nhóm theo ID", description = "Lấy thông tin chi tiết của nhóm theo ID")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved group details"),
-                        @ApiResponse(responseCode = "404", description = "Group not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm")
         })
         @GetMapping("/{id}")
-        public ResponseEntity<GroupDto> getGroupById(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id) {
-                return ResponseEntity.ok(groupService.getGroupById(id));
+        public ResponseEntity<ApiResponse<GroupDto>> getGroupById(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id) {
+                GroupDto group = groupService.getGroupById(id);
+
+                ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
+                                .success(true)
+                                .message("Lấy thông tin nhóm thành công")
+                                .payload(group)
+                                .id(id)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Get user's groups", description = "Retrieves all groups that the current user is a member of")
+        @Operation(summary = "Lấy danh sách nhóm của người dùng", description = "Lấy tất cả các nhóm mà người dùng hiện tại là thành viên")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved user's groups")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách nhóm của người dùng thành công")
         })
         @GetMapping("/user")
-        public ResponseEntity<List<GroupDto>> getGroupsByUser(
+        public ResponseEntity<ApiResponse<List<GroupDto>>> getGroupsByUser(
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(groupService.getGroupsByUserId(userId));
+                List<GroupDto> groups = groupService.getGroupsByUserId(userId);
+
+                ApiResponse<List<GroupDto>> response = ApiResponse.<List<GroupDto>>builder()
+                                .success(true)
+                                .message("Lấy danh sách nhóm thành công")
+                                .payload(groups)
+                                .data("count", groups.size())
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Search user's groups by name", description = "Searches for groups by name that the current user is a member of")
+        @Operation(summary = "Tìm kiếm nhóm theo tên", description = "Tìm kiếm các nhóm theo tên mà người dùng hiện tại là thành viên")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Successfully retrieved matching groups")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tìm kiếm nhóm thành công")
         })
         @GetMapping("/search")
-        public ResponseEntity<List<GroupDto>> searchGroupsByName(
-                        @Parameter(description = "Group name to search for", required = true) @RequestParam String name,
+        public ResponseEntity<ApiResponse<List<GroupDto>>> searchGroupsByName(
+                        @Parameter(description = "Tên nhóm cần tìm kiếm", required = true) @RequestParam String name,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(groupService.searchGroupsByName(userId, name));
+                List<GroupDto> groups = groupService.searchGroupsByName(userId, name);
+
+                ApiResponse<List<GroupDto>> response = ApiResponse.<List<GroupDto>>builder()
+                                .success(true)
+                                .message("Tìm kiếm nhóm thành công")
+                                .payload(groups)
+                                .data("count", groups.size())
+                                .data("searchTerm", name)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Update group", description = "Updates a group's information")
+        @Operation(summary = "Cập nhật nhóm", description = "Cập nhật thông tin của nhóm")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Group updated successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to update this group"),
-                        @ApiResponse(responseCode = "404", description = "Group not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền cập nhật nhóm này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm")
         })
         @PutMapping("/{id}")
-        public ResponseEntity<GroupDto> updateGroup(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id,
-                        @Parameter(description = "Updated group information", required = true) @RequestBody GroupDto groupDto,
+        public ResponseEntity<ApiResponse<GroupDto>> updateGroup(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "Thông tin nhóm cần cập nhật", required = true) @RequestBody GroupDto groupDto,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                return ResponseEntity.ok(groupService.updateGroup(id, groupDto, userId));
+                GroupDto updatedGroup = groupService.updateGroup(id, groupDto, userId);
+
+                ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
+                                .success(true)
+                                .message("Cập nhật nhóm thành công")
+                                .payload(updatedGroup)
+                                .id(id)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Upload group avatar", description = "Uploads a new avatar image for the group")
+        @Operation(summary = "Tải lên ảnh đại diện nhóm", description = "Tải lên ảnh đại diện mới cho nhóm")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Avatar uploaded successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to update this group"),
-                        @ApiResponse(responseCode = "404", description = "Group not found"),
-                        @ApiResponse(responseCode = "400", description = "Invalid file format or size")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tải lên ảnh đại diện thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền cập nhật nhóm này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Định dạng hoặc kích thước tệp không hợp lệ")
         })
         @PostMapping("/{id}/avatar")
-        public ResponseEntity<GroupDto> uploadGroupAvatar(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id,
-                        @Parameter(description = "Avatar image file", required = true) @RequestParam("file") MultipartFile file,
+        public ResponseEntity<ApiResponse<GroupDto>> uploadGroupAvatar(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "Tệp ảnh đại diện", required = true) @RequestParam("file") MultipartFile file,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) throws IOException {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
@@ -119,58 +166,92 @@ public class GroupController {
                 GroupDto groupDto = new GroupDto();
                 groupDto.setAvatarUrl(fileUrl);
 
-                return ResponseEntity.ok(groupService.updateGroup(id, groupDto, userId));
+                GroupDto updatedGroup = groupService.updateGroup(id, groupDto, userId);
+
+                ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
+                                .success(true)
+                                .message("Tải lên ảnh đại diện nhóm thành công")
+                                .payload(updatedGroup)
+                                .id(id)
+                                .data("avatarUrl", fileUrl)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Add member", description = "Adds a new member to the group")
+        @Operation(summary = "Thêm thành viên", description = "Thêm một thành viên mới vào nhóm")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Member added successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to add members"),
-                        @ApiResponse(responseCode = "404", description = "Group or user not found"),
-                        @ApiResponse(responseCode = "409", description = "User is already a member")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thêm thành viên thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền thêm thành viên"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Người dùng đã là thành viên của nhóm")
         })
         @PostMapping("/{id}/members/{userId}")
-        public ResponseEntity<?> addMember(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id,
-                        @Parameter(description = "User ID to add", required = true) @PathVariable Long userId,
+        public ResponseEntity<ApiResponse<Void>> addMember(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "ID của người dùng cần thêm", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long adminId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 groupService.addMember(id, userId, adminId);
-                return ResponseEntity.ok().build();
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Thêm thành viên vào nhóm thành công")
+                                .id(id)
+                                .data("userId", userId)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Remove member", description = "Removes a member from the group")
+        @Operation(summary = "Xóa thành viên", description = "Xóa một thành viên khỏi nhóm")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "Member removed successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to remove members"),
-                        @ApiResponse(responseCode = "404", description = "Group or user not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xóa thành viên thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền xóa thành viên"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng")
         })
         @DeleteMapping("/{id}/members/{userId}")
-        public ResponseEntity<?> removeMember(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id,
-                        @Parameter(description = "User ID to remove", required = true) @PathVariable Long userId,
+        public ResponseEntity<ApiResponse<Void>> removeMember(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "ID của người dùng cần xóa", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long adminId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 groupService.removeMember(id, userId, adminId);
-                return ResponseEntity.ok().build();
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Xóa thành viên khỏi nhóm thành công")
+                                .id(id)
+                                .data("userId", userId)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Make admin", description = "Promotes a group member to admin status")
+        @Operation(summary = "Thăng cấp thành quản trị viên", description = "Thăng cấp một thành viên nhóm thành quản trị viên")
         @ApiResponses(value = {
-                        @ApiResponse(responseCode = "200", description = "User promoted to admin successfully"),
-                        @ApiResponse(responseCode = "403", description = "Not authorized to promote members"),
-                        @ApiResponse(responseCode = "404", description = "Group or user not found")
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thăng cấp thành quản trị viên thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền thăng cấp thành viên"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng")
         })
         @PostMapping("/{id}/admins/{userId}")
-        public ResponseEntity<?> makeAdmin(
-                        @Parameter(description = "Group ID", required = true) @PathVariable Long id,
-                        @Parameter(description = "User ID to promote", required = true) @PathVariable Long userId,
+        public ResponseEntity<ApiResponse<Void>> makeAdmin(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "ID của người dùng cần thăng cấp", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long adminId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
                 groupService.makeAdmin(id, userId, adminId);
-                return ResponseEntity.ok().build();
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Đã thăng cấp thành viên thành quản trị viên")
+                                .id(id)
+                                .data("userId", userId)
+                                .build();
+
+                return ResponseEntity.ok(response);
         }
 }
