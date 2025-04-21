@@ -37,7 +37,7 @@ public class GroupController {
                 this.fileStorageService = fileStorageService;
         }
 
-        @Operation(summary = "Tạo nhóm", description = "Tạo một nhóm chat mới với bạn bè làm thành viên")
+        @Operation(summary = "Tạo nhóm", description = "Tạo một nhóm chat mới với bạn bè làm thành viên và tự động tạo cuộc trò chuyện nhóm tương ứng")
         @ApiResponses(value = {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo nhóm thành công"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu nhóm không hợp lệ")
@@ -52,9 +52,8 @@ public class GroupController {
 
                 ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
                                 .success(true)
-                                .message("Nhóm đã được tạo thành công")
+                                .message("Nhóm và cuộc trò chuyện đã được tạo thành công")
                                 .payload(createdGroup)
-                                .id(createdGroup.getGroupId())
                                 .build();
 
                 return ResponseEntity.ok(response);

@@ -36,7 +36,4 @@ public class Conversation {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    @Enumerated(EnumType.STRING)
-    public ConversationType conversationType;
-
 }

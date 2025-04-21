@@ -31,6 +31,7 @@ public class Group {
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL)
     private Set<GroupMember> members = new HashSet<>();
 
-    @OneToMany(mappedBy = "group", cascade = CascadeType.ALL)
-    private Set<Message> messages = new HashSet<>();
+    @OneToOne
+    @JoinColumn(name = "conversation_id")
+    private Conversation conversation;
 }

@@ -4,6 +4,7 @@ import com.chatapp.dto.request.GroupDto;
 import com.chatapp.dto.request.GroupMemberDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.dto.request.GroupCreateDto;
+import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.enums.FriendStatus;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
@@ -11,6 +12,7 @@ import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.Group;
 import com.chatapp.model.GroupMember;
 import com.chatapp.model.User;
+import com.chatapp.model.Conversation;
 import com.chatapp.repository.FriendRepository;
 import com.chatapp.repository.GroupMemberRepository;
 import com.chatapp.repository.GroupRepository;
@@ -32,6 +34,7 @@ public class GroupService {
         private final GroupMemberRepository groupMemberRepository;
         private final UserRepository userRepository;
         private final FriendRepository friendRepository;
+        private final ConversationService conversationService;
 
         /**
          * Constructor để dependency injection
@@ -42,13 +45,17 @@ public class GroupService {
          * @param userRepository        Repository xử lý thao tác với database của User
          * @param friendRepository      Repository xử lý thao tác với database của
          *                              Friend
+         * @param conversationService   Service xử lý các thao tác liên quan đến cuộc
+         *                              trò chuyện
          */
         public GroupService(GroupRepository groupRepository, GroupMemberRepository groupMemberRepository,
-                        UserRepository userRepository, FriendRepository friendRepository) {
+                        UserRepository userRepository, FriendRepository friendRepository,
+                        ConversationService conversationService) {
                 this.groupRepository = groupRepository;
                 this.groupMemberRepository = groupMemberRepository;
                 this.userRepository = userRepository;
                 this.friendRepository = friendRepository;
+                this.conversationService = conversationService;
         }
 
         /**
@@ -99,6 +106,10 @@ public class GroupService {
                 adminMemberDto.setAdmin(true);
                 groupMembers.add(adminMemberDto);
 
+                // Danh sách ID của tất cả thành viên, bao gồm người tạo
+                List<Long> allMemberIds = new ArrayList<>();
+                allMemberIds.add(creatorId);
+
                 // Thêm các thành viên khác từ danh sách ID
                 for (Long memberId : groupCreateDto.getMemberIds()) {
                         // Bỏ qua nếu là ID của người tạo
@@ -126,6 +137,9 @@ public class GroupService {
                         newMember.setRole(false); // Regular member
                         GroupMember savedMember = groupMemberRepository.save(newMember);
 
+                        // Thêm ID thành viên vào danh sách
+                        allMemberIds.add(memberId);
+
                         // Thêm chi tiết thành viên vào danh sách thành viên để trả về
                         GroupMemberDto memberDto = new GroupMemberDto();
                         memberDto.setId(savedMember.getId());
@@ -140,12 +154,21 @@ public class GroupService {
                         groupMembers.add(memberDto);
                 }
 
+                // Tạo cuộc trò chuyện nhóm sau khi tạo nhóm thành công
+                ConversationDto conversationDto = conversationService.createConversation(creatorId, allMemberIds);
+
+                // Liên kết conversation với group
+                Conversation conversation = conversationService.getConversationById(conversationDto.getId());
+                savedGroup.setConversation(conversation);
+                groupRepository.save(savedGroup);
+
                 GroupDto result = new GroupDto();
                 result.setGroupId(savedGroup.getGroupId());
                 result.setName(savedGroup.getName());
                 result.setAvatarUrl(savedGroup.getAvatarUrl());
                 result.setCreatedAt(savedGroup.getCreatedAt());
                 result.setMembers(groupMembers);
+                result.setConversationId(conversationDto.getId()); // Lưu ID cuộc trò chuyện
 
                 return result;
         }
@@ -294,11 +317,18 @@ public class GroupService {
                         throw new BadRequestException("User is already a member of this group");
                 }
 
+                // Thêm thành viên vào nhóm
                 GroupMember groupMember = new GroupMember();
                 groupMember.setGroup(group);
                 groupMember.setUser(user);
                 groupMember.setRole(false); // Regular member
                 groupMemberRepository.save(groupMember);
+
+                // Thêm thành viên vào cuộc trò chuyện của nhóm (nếu có)
+                if (group.getConversation() != null) {
+                        // Tạo ConversationUser mới để thêm người dùng vào cuộc trò chuyện
+                        conversationService.addUserToConversation(group.getConversation().getId(), userId);
+                }
         }
 
         /**
@@ -344,6 +374,11 @@ public class GroupService {
                 }
 
                 groupMemberRepository.delete(memberToRemove);
+
+                // Xóa người dùng khỏi cuộc trò chuyện của nhóm (nếu có)
+                if (group.getConversation() != null) {
+                        conversationService.removeUserFromConversation(group.getConversation().getId(), userId);
+                }
         }
 
         /**
@@ -405,6 +440,12 @@ public class GroupService {
                                 .collect(Collectors.toList());
 
                 dto.setMembers(memberDtos);
+
+                // Thêm conversationId từ mối quan hệ với conversation
+                if (group.getConversation() != null) {
+                        dto.setConversationId(group.getConversation().getId());
+                }
+
                 return dto;
         }
 

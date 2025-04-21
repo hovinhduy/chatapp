@@ -296,4 +296,66 @@ public class ConversationService {
         public boolean isBlockedByUser(Long conversationId, Long userId) {
                 return conversationBlockRepository.existsByConversation_IdAndUser_UserId(conversationId, userId);
         }
+
+        /**
+         * Lấy đối tượng Conversation từ id
+         *
+         * @param conversationId ID của cuộc hội thoại cần lấy
+         * @return Đối tượng Conversation
+         * @throws ResourceNotFoundException Nếu không tìm thấy cuộc hội thoại
+         */
+        public Conversation getConversationById(Long conversationId) {
+                return conversationRepository.findById(conversationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy cuộc trò chuyện với id: " + conversationId));
+        }
+
+        /**
+         * Thêm người dùng vào cuộc trò chuyện
+         *
+         * @param conversationId ID của cuộc trò chuyện
+         * @param userId         ID của người dùng cần thêm
+         * @throws ResourceNotFoundException Nếu không tìm thấy cuộc trò chuyện hoặc
+         *                                   người dùng
+         */
+        @Transactional
+        public void addUserToConversation(Long conversationId, Long userId) {
+                Conversation conversation = getConversationById(conversationId);
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người dùng với id: " + userId));
+
+                // Kiểm tra xem người dùng đã trong cuộc trò chuyện chưa
+                boolean isExist = conversationUserRepository.existsByConversationIdAndUserId(conversationId, userId);
+                if (isExist) {
+                        return; // Nếu đã tồn tại, không làm gì
+                }
+
+                // Thêm người dùng vào cuộc trò chuyện
+                ConversationUser conversationUser = new ConversationUser();
+                conversationUser.setConversation(conversation);
+                conversationUser.setUser(user);
+                conversationUserRepository.save(conversationUser);
+        }
+
+        /**
+         * Xóa người dùng khỏi cuộc trò chuyện
+         *
+         * @param conversationId ID của cuộc trò chuyện
+         * @param userId         ID của người dùng cần xóa
+         * @throws ResourceNotFoundException Nếu không tìm thấy cuộc trò chuyện hoặc
+         *                                   người dùng
+         */
+        @Transactional
+        public void removeUserFromConversation(Long conversationId, Long userId) {
+                // Kiểm tra xem người dùng có trong cuộc trò chuyện không
+                ConversationUser conversationUser = conversationUserRepository
+                                .findByConversationIdAndUserId(conversationId, userId)
+                                .orElse(null);
+
+                if (conversationUser != null) {
+                        conversationUserRepository.delete(conversationUser);
+                }
+        }
+
 }

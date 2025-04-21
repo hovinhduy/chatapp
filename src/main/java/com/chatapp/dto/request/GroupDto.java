@@ -16,4 +16,5 @@ public class GroupDto {
     private String avatarUrl;
     private LocalDateTime createdAt;
     private List<GroupMemberDto> members;
+    private Long conversationId;
 }
