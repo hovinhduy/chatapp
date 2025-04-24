@@ -216,7 +216,7 @@ public class GroupService {
         public GroupDto getGroupById(Long groupId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
                 return mapToDto(group);
         }
 
@@ -259,17 +259,18 @@ public class GroupService {
         public GroupDto updateGroup(Long groupId, GroupDto groupDto, Long userId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 // Check if user is admin
                 GroupMember member = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "User not found with id: " + userId)))
-                                .orElseThrow(() -> new UnauthorizedException("You are not a member of this group"));
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Bạn không phải là thành viên của nhóm này"));
 
                 if (!member.getRole().equals(GroupRole.LEADER)) {
-                        throw new UnauthorizedException("Only group admin can update group details");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể cập nhật thông tin nhóm");
                 }
 
                 group.setName(groupDto.getName());
@@ -297,25 +298,27 @@ public class GroupService {
         public void addMember(Long groupId, Long userId, Long managerId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người dùng với id: " + userId));
 
                 // Kiểm tra quyền quản lý
                 GroupMember managerMember = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(managerId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Manager not found with id: " + managerId)))
-                                .orElseThrow(() -> new UnauthorizedException("Manager is not a member of this group"));
+                                                                "Không tìm thấy người quản lý với id: " + managerId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Người quản lý không phải là thành viên của nhóm này"));
 
                 if (!hasManagePermission(managerMember)) {
-                        throw new UnauthorizedException("Only group leader or deputy can add members");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm hoặc phó nhóm mới có thể thêm thành viên");
                 }
 
                 // Check if user is already a member
                 if (groupMemberRepository.existsByGroupAndUser(group, user)) {
-                        throw new BadRequestException("User is already a member of this group");
+                        throw new BadRequestException("Người dùng đã là thành viên của nhóm này");
                 }
 
                 // Thêm thành viên vào nhóm
@@ -349,34 +352,36 @@ public class GroupService {
         public void removeMember(Long groupId, Long userId, Long managerId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 // Kiểm tra quyền quản lý
                 GroupMember managerMember = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(managerId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Manager not found with id: " + managerId)))
-                                .orElseThrow(() -> new UnauthorizedException("Manager is not a member of this group"));
+                                                                "Không tìm thấy người quản lý với id: " + managerId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Người quản lý không phải là thành viên của nhóm này"));
 
                 if (!hasManagePermission(managerMember)) {
-                        throw new UnauthorizedException("Only group leader or deputy can remove members");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm hoặc phó nhóm mới có thể xóa thành viên");
                 }
 
                 // Tìm thành viên cần xóa
                 GroupMember memberToRemove = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "User not found with id: " + userId)))
-                                .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Người dùng không phải là thành viên của nhóm này"));
 
                 // Không thể xóa trưởng nhóm
                 if (memberToRemove.getRole() == GroupRole.LEADER) {
-                        throw new UnauthorizedException("Cannot remove group leader");
+                        throw new UnauthorizedException("Không thể xóa trưởng nhóm");
                 }
 
                 // Phó nhóm chỉ có thể xóa thành viên thường
                 if (managerMember.getRole() == GroupRole.DEPUTY && memberToRemove.getRole() == GroupRole.DEPUTY) {
-                        throw new UnauthorizedException("Deputy cannot remove another deputy");
+                        throw new UnauthorizedException("Phó nhóm không thể xóa phó nhóm khác");
                 }
 
                 groupMemberRepository.delete(memberToRemove);
@@ -399,28 +404,30 @@ public class GroupService {
         public void makeDeputy(Long groupId, Long userId, Long leaderId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
                 GroupMember leaderMember = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(leaderId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Leader not found with id: " + leaderId)))
-                                .orElseThrow(() -> new UnauthorizedException("Leader is not a member of this group"));
+                                                                "Không tìm thấy trưởng nhóm với id: " + leaderId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Trưởng nhóm không phải là thành viên của nhóm này"));
 
                 if (leaderMember.getRole() != GroupRole.LEADER) {
-                        throw new UnauthorizedException("Only group leader can assign deputy roles");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể bổ nhiệm phó nhóm");
                 }
 
                 // Tìm thành viên cần thăng chức
                 GroupMember memberToPromote = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "User not found with id: " + userId)))
-                                .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Người dùng không phải là thành viên của nhóm này"));
 
                 if (memberToPromote.getRole() == GroupRole.LEADER) {
-                        throw new BadRequestException("Cannot change role of group leader");
+                        throw new BadRequestException("Không thể thay đổi vai trò của trưởng nhóm");
                 }
 
                 memberToPromote.setRole(GroupRole.DEPUTY);
@@ -431,28 +438,30 @@ public class GroupService {
         public void demoteToMember(Long groupId, Long userId, Long leaderId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
                 GroupMember leaderMember = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(leaderId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Leader not found with id: " + leaderId)))
-                                .orElseThrow(() -> new UnauthorizedException("Leader is not a member of this group"));
+                                                                "Không tìm thấy trưởng nhóm với id: " + leaderId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Trưởng nhóm không phải là thành viên của nhóm này"));
 
                 if (leaderMember.getRole() != GroupRole.LEADER) {
-                        throw new UnauthorizedException("Only group leader can demote members");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể hạ chức thành viên");
                 }
 
                 // Tìm thành viên cần hạ chức
                 GroupMember memberToDemote = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "User not found with id: " + userId)))
-                                .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Người dùng không phải là thành viên của nhóm này"));
 
                 if (memberToDemote.getRole() == GroupRole.LEADER) {
-                        throw new BadRequestException("Cannot demote group leader");
+                        throw new BadRequestException("Không thể hạ chức trưởng nhóm");
                 }
 
                 memberToDemote.setRole(GroupRole.MEMBER);
@@ -463,27 +472,29 @@ public class GroupService {
         public void transferLeadership(Long groupId, Long newLeaderId, Long currentLeaderId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Group not found with id: " + groupId));
+                                                "Không tìm thấy nhóm với id: " + groupId));
 
                 // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
                 GroupMember currentLeader = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(currentLeaderId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Current leader not found with id: "
+                                                                "Không tìm thấy trưởng nhóm hiện tại với id: "
                                                                                 + currentLeaderId)))
                                 .orElseThrow(() -> new UnauthorizedException(
-                                                "Current leader is not a member of this group"));
+                                                "Trưởng nhóm hiện tại không phải là thành viên của nhóm này"));
 
                 if (currentLeader.getRole() != GroupRole.LEADER) {
-                        throw new UnauthorizedException("Only group leader can transfer leadership");
+                        throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể chuyển giao quyền trưởng nhóm");
                 }
 
                 // Tìm thành viên được chọn làm trưởng nhóm mới
                 GroupMember newLeader = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(newLeaderId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "New leader not found with id: " + newLeaderId)))
-                                .orElseThrow(() -> new BadRequestException("New leader is not a member of this group"));
+                                                                "Không tìm thấy trưởng nhóm mới với id: "
+                                                                                + newLeaderId)))
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Trưởng nhóm mới không phải là thành viên của nhóm này"));
 
                 // Chuyển quyền trưởng nhóm
                 currentLeader.setRole(GroupRole.MEMBER);
@@ -491,6 +502,52 @@ public class GroupService {
 
                 groupMemberRepository.save(currentLeader);
                 groupMemberRepository.save(newLeader);
+        }
+
+        /**
+         * Giải tán nhóm chat (chỉ trưởng nhóm mới có quyền giải tán)
+         * 
+         * @param groupId ID của nhóm cần giải tán
+         * @param userId  ID của người dùng thực hiện giải tán (phải là trưởng nhóm)
+         * @throws ResourceNotFoundException Nếu không tìm thấy nhóm hoặc người dùng
+         * @throws UnauthorizedException     Nếu người dùng không phải là trưởng nhóm
+         */
+        @Transactional
+        public void dissolveGroup(Long groupId, Long userId) {
+                Group group = groupRepository.findById(groupId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy nhóm với id: " + groupId));
+
+                // Kiểm tra xem người dùng có phải là trưởng nhóm không
+                GroupMember member = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(userId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Bạn không phải là thành viên của nhóm này"));
+
+                if (member.getRole() != GroupRole.LEADER) {
+                        throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể giải tán nhóm");
+                }
+
+                // Lấy thông tin về cuộc trò chuyện của nhóm (nếu có)
+                Conversation conversation = group.getConversation();
+                Long conversationId = null;
+                if (conversation != null) {
+                        conversationId = conversation.getId();
+                }
+
+                // Xóa tất cả các thành viên của nhóm
+                List<GroupMember> groupMembers = groupMemberRepository.findByGroup(group);
+                groupMemberRepository.deleteAll(groupMembers);
+
+                // Xóa nhóm
+                groupRepository.delete(group);
+
+                // Xóa cuộc trò chuyện liên quan đến nhóm (nếu có)
+                if (conversationId != null) {
+                        conversationService.deleteConversation(conversationId);
+                }
         }
 
         /**

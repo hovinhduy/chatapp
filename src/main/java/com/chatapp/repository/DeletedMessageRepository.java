@@ -1,5 +1,6 @@
 package com.chatapp.repository;
 
+import com.chatapp.model.Conversation;
 import com.chatapp.model.DeletedMessage;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
@@ -18,4 +19,8 @@ public interface DeletedMessageRepository extends JpaRepository<DeletedMessage, 
     List<DeletedMessage> findByMessage(Message message);
 
     void deleteByUserAndMessage(User user, Message message);
+
+    List<DeletedMessage> findByMessage_Conversation(Conversation conversation);
+
+    void deleteAllByMessage(Message message);
 }

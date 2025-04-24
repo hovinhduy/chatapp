@@ -1,5 +1,6 @@
 package com.chatapp.repository;
 
+import com.chatapp.model.Conversation;
 import com.chatapp.model.Group;
 import com.chatapp.model.Message;
 import com.chatapp.model.User;
@@ -26,4 +27,8 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     // Thêm phương thức có phân trang, sắp xếp từ mới đến cũ
     Page<Message> findByConversationIdOrderByCreatedAtDesc(Long conversationId, Pageable pageable);
+
+    void deleteByConversation(Conversation conversation);
+
+    void deleteAllByConversation(Conversation conversation);
 }

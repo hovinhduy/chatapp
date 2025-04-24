@@ -303,4 +303,27 @@ public class GroupController {
 
                 return ResponseEntity.ok(response);
         }
+
+        @Operation(summary = "Giải tán nhóm", description = "Giải tán nhóm và xóa tất cả dữ liệu liên quan đến nhóm (chỉ trưởng nhóm mới có quyền thực hiện)")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Giải tán nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền giải tán nhóm"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm")
+        })
+        @DeleteMapping("/{id}/dissolve")
+        public ResponseEntity<ApiResponse<Void>> dissolveGroup(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                Long leaderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                groupService.dissolveGroup(id, leaderId);
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Nhóm đã được giải tán thành công")
+                                .id(id)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
 }

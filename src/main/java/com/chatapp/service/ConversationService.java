@@ -384,4 +384,36 @@ public class ConversationService {
                 }
         }
 
+        /**
+         * Xóa một cuộc trò chuyện và tất cả dữ liệu liên quan
+         *
+         * @param conversationId ID của cuộc trò chuyện cần xóa
+         * @throws ResourceNotFoundException Nếu không tìm thấy cuộc trò chuyện
+         */
+        @Transactional
+        public void deleteConversation(Long conversationId) {
+                Conversation conversation = conversationRepository.findById(conversationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy cuộc trò chuyện với id: " + conversationId));
+
+                // Xóa tất cả các tin nhắn đã bị xóa liên quan đến tin nhắn trong cuộc trò
+                // chuyện
+                List<Message> messages = messageRepository.findByConversationIdOrderByCreatedAtAsc(conversationId);
+                for (Message message : messages) {
+                        deletedMessageRepository.deleteAllByMessage(message);
+                }
+
+                // Xóa tất cả tin nhắn trong cuộc trò chuyện
+                messageRepository.deleteAllByConversation(conversation);
+
+                // Xóa tất cả các block cuộc trò chuyện
+                conversationBlockRepository.deleteAllByConversation(conversation);
+
+                // Xóa tất cả liên kết người dùng trong cuộc trò chuyện
+                conversationUserRepository.deleteAllByConversation(conversation);
+
+                // Cuối cùng xóa cuộc trò chuyện
+                conversationRepository.delete(conversation);
+        }
+
 }
