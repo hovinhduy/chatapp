@@ -6,6 +6,7 @@ import com.chatapp.dto.request.UserDto;
 import com.chatapp.dto.request.GroupCreateDto;
 import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.enums.FriendStatus;
+import com.chatapp.enums.GroupRole;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.UnauthorizedException;
@@ -83,28 +84,28 @@ public class GroupService {
 
                 Group savedGroup = groupRepository.save(group);
 
-                // Thêm người tạo làm admin
+                // Thêm người tạo làm trưởng nhóm
                 GroupMember groupMember = new GroupMember();
                 groupMember.setGroup(savedGroup);
                 groupMember.setUser(creator);
-                groupMember.setRole(true); // Admin role
+                groupMember.setRole(GroupRole.LEADER); // Trưởng nhóm
                 groupMemberRepository.save(groupMember);
 
                 // Danh sách thành viên Group
                 List<GroupMemberDto> groupMembers = new ArrayList<>();
 
-                // Thêm chi tiết admin vào danh sách thành viên để trả về
-                GroupMemberDto adminMemberDto = new GroupMemberDto();
-                adminMemberDto.setId(groupMember.getId());
-                adminMemberDto.setGroupId(savedGroup.getGroupId());
-                UserDto adminUserDto = new UserDto();
-                adminUserDto.setUserId(creator.getUserId());
-                adminUserDto.setDisplayName(creator.getDisplayName());
-                adminUserDto.setPhone(creator.getPhone());
-                adminUserDto.setAvatarUrl(creator.getAvatarUrl());
-                adminMemberDto.setUser(adminUserDto);
-                adminMemberDto.setAdmin(true);
-                groupMembers.add(adminMemberDto);
+                // Thêm chi tiết trưởng nhóm vào danh sách thành viên để trả về
+                GroupMemberDto leaderMemberDto = new GroupMemberDto();
+                leaderMemberDto.setId(groupMember.getId());
+                leaderMemberDto.setGroupId(savedGroup.getGroupId());
+                UserDto leaderUserDto = new UserDto();
+                leaderUserDto.setUserId(creator.getUserId());
+                leaderUserDto.setDisplayName(creator.getDisplayName());
+                leaderUserDto.setPhone(creator.getPhone());
+                leaderUserDto.setAvatarUrl(creator.getAvatarUrl());
+                leaderMemberDto.setUser(leaderUserDto);
+                leaderMemberDto.setRole(GroupRole.LEADER);
+                groupMembers.add(leaderMemberDto);
 
                 // Danh sách ID của tất cả thành viên, bao gồm người tạo
                 List<Long> allMemberIds = new ArrayList<>();
@@ -134,7 +135,7 @@ public class GroupService {
                         GroupMember newMember = new GroupMember();
                         newMember.setGroup(savedGroup);
                         newMember.setUser(member);
-                        newMember.setRole(false); // Regular member
+                        newMember.setRole(GroupRole.MEMBER); // Thành viên thường
                         GroupMember savedMember = groupMemberRepository.save(newMember);
 
                         // Thêm ID thành viên vào danh sách
@@ -150,7 +151,7 @@ public class GroupService {
                         userDto.setPhone(member.getPhone());
                         userDto.setAvatarUrl(member.getAvatarUrl());
                         memberDto.setUser(userDto);
-                        memberDto.setAdmin(false);
+                        memberDto.setRole(savedMember.getRole());
                         groupMembers.add(memberDto);
                 }
 
@@ -267,7 +268,7 @@ public class GroupService {
                                                                 "User not found with id: " + userId)))
                                 .orElseThrow(() -> new UnauthorizedException("You are not a member of this group"));
 
-                if (!member.isRole()) {
+                if (!member.getRole().equals(GroupRole.LEADER)) {
                         throw new UnauthorizedException("Only group admin can update group details");
                 }
 
@@ -283,17 +284,17 @@ public class GroupService {
         /**
          * Thêm thành viên vào nhóm
          * 
-         * @param groupId ID của nhóm
-         * @param userId  ID của người dùng cần thêm vào nhóm
-         * @param adminId ID của admin thực hiện thêm thành viên
+         * @param groupId   ID của nhóm
+         * @param userId    ID của người dùng cần thêm vào nhóm
+         * @param managerId ID của người quản lý thêm thành viên
          * @throws ResourceNotFoundException Nếu không tìm thấy nhóm, người dùng hoặc
-         *                                   admin
-         * @throws UnauthorizedException     Nếu người thực hiện không phải là admin của
+         *                                   người quản lý
+         * @throws UnauthorizedException     Nếu người quản lý không phải là admin của
          *                                   nhóm
          * @throws BadRequestException       Nếu người dùng đã là thành viên của nhóm
          */
         @Transactional
-        public void addMember(Long groupId, Long userId, Long adminId) {
+        public void addMember(Long groupId, Long userId, Long managerId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Group not found with id: " + groupId));
@@ -301,15 +302,15 @@ public class GroupService {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
 
-                // Check if admin is admin
-                GroupMember adminMember = groupMemberRepository.findByGroupAndUser(group,
-                                userRepository.findById(adminId)
+                // Kiểm tra quyền quản lý
+                GroupMember managerMember = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(managerId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Admin not found with id: " + adminId)))
-                                .orElseThrow(() -> new UnauthorizedException("Admin is not a member of this group"));
+                                                                "Manager not found with id: " + managerId)))
+                                .orElseThrow(() -> new UnauthorizedException("Manager is not a member of this group"));
 
-                if (!adminMember.isRole()) {
-                        throw new UnauthorizedException("Only group admin can add members");
+                if (!hasManagePermission(managerMember)) {
+                        throw new UnauthorizedException("Only group leader or deputy can add members");
                 }
 
                 // Check if user is already a member
@@ -321,7 +322,7 @@ public class GroupService {
                 GroupMember groupMember = new GroupMember();
                 groupMember.setGroup(group);
                 groupMember.setUser(user);
-                groupMember.setRole(false); // Regular member
+                groupMember.setRole(GroupRole.MEMBER); // Thành viên thường
                 groupMemberRepository.save(groupMember);
 
                 // Thêm thành viên vào cuộc trò chuyện của nhóm (nếu có)
@@ -334,43 +335,48 @@ public class GroupService {
         /**
          * Xóa thành viên khỏi nhóm
          * 
-         * @param groupId ID của nhóm
-         * @param userId  ID của người dùng cần xóa khỏi nhóm
-         * @param adminId ID của admin thực hiện xóa thành viên
+         * @param groupId   ID của nhóm
+         * @param userId    ID của người dùng cần xóa khỏi nhóm
+         * @param managerId ID của người quản lý thực hiện xóa thành viên
          * @throws ResourceNotFoundException Nếu không tìm thấy nhóm, người dùng hoặc
-         *                                   admin
-         * @throws UnauthorizedException     Nếu người thực hiện không phải là admin
-         *                                   hoặc cố gắng xóa admin khác
+         *                                   người quản lý
+         * @throws UnauthorizedException     Nếu người quản lý không phải là admin của
+         *                                   nhóm
          * @throws BadRequestException       Nếu người dùng không phải là thành viên của
          *                                   nhóm
          */
         @Transactional
-        public void removeMember(Long groupId, Long userId, Long adminId) {
+        public void removeMember(Long groupId, Long userId, Long managerId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Group not found with id: " + groupId));
 
-                // Check if admin is admin
-                GroupMember adminMember = groupMemberRepository.findByGroupAndUser(group,
-                                userRepository.findById(adminId)
+                // Kiểm tra quyền quản lý
+                GroupMember managerMember = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(managerId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Admin not found with id: " + adminId)))
-                                .orElseThrow(() -> new UnauthorizedException("Admin is not a member of this group"));
+                                                                "Manager not found with id: " + managerId)))
+                                .orElseThrow(() -> new UnauthorizedException("Manager is not a member of this group"));
 
-                if (!adminMember.isRole()) {
-                        throw new UnauthorizedException("Only group admin can remove members");
+                if (!hasManagePermission(managerMember)) {
+                        throw new UnauthorizedException("Only group leader or deputy can remove members");
                 }
 
-                // Find member to remove
+                // Tìm thành viên cần xóa
                 GroupMember memberToRemove = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                                 "User not found with id: " + userId)))
                                 .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
 
-                // Cannot remove another admin
-                if (memberToRemove.isRole() && !adminId.equals(userId)) {
-                        throw new UnauthorizedException("Cannot remove another admin");
+                // Không thể xóa trưởng nhóm
+                if (memberToRemove.getRole() == GroupRole.LEADER) {
+                        throw new UnauthorizedException("Cannot remove group leader");
+                }
+
+                // Phó nhóm chỉ có thể xóa thành viên thường
+                if (managerMember.getRole() == GroupRole.DEPUTY && memberToRemove.getRole() == GroupRole.DEPUTY) {
+                        throw new UnauthorizedException("Deputy cannot remove another deputy");
                 }
 
                 groupMemberRepository.delete(memberToRemove);
@@ -382,44 +388,109 @@ public class GroupService {
         }
 
         /**
-         * Nâng cấp một thành viên thành admin của nhóm
-         * 
-         * @param groupId ID của nhóm
-         * @param userId  ID của người dùng cần nâng cấp thành admin
-         * @param adminId ID của admin thực hiện nâng cấp
-         * @throws ResourceNotFoundException Nếu không tìm thấy nhóm, người dùng hoặc
-         *                                   admin
-         * @throws UnauthorizedException     Nếu người thực hiện không phải là admin của
-         *                                   nhóm
-         * @throws BadRequestException       Nếu người dùng không phải là thành viên của
-         *                                   nhóm
+         * Kiểm tra xem người dùng có quyền quản lý nhóm không (trưởng nhóm hoặc phó
+         * nhóm)
          */
+        private boolean hasManagePermission(GroupMember member) {
+                return member.getRole() == GroupRole.LEADER || member.getRole() == GroupRole.DEPUTY;
+        }
+
         @Transactional
-        public void makeAdmin(Long groupId, Long userId, Long adminId) {
+        public void makeDeputy(Long groupId, Long userId, Long leaderId) {
                 Group group = groupRepository.findById(groupId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Group not found with id: " + groupId));
 
-                // Check if current user is admin
-                GroupMember adminMember = groupMemberRepository.findByGroupAndUser(group,
-                                userRepository.findById(adminId)
+                // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
+                GroupMember leaderMember = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(leaderId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
-                                                                "Admin not found with id: " + adminId)))
-                                .orElseThrow(() -> new UnauthorizedException("Admin is not a member of this group"));
+                                                                "Leader not found with id: " + leaderId)))
+                                .orElseThrow(() -> new UnauthorizedException("Leader is not a member of this group"));
 
-                if (!adminMember.isRole()) {
-                        throw new UnauthorizedException("Only group admin can assign admin roles");
+                if (leaderMember.getRole() != GroupRole.LEADER) {
+                        throw new UnauthorizedException("Only group leader can assign deputy roles");
                 }
 
-                // Find member to promote
+                // Tìm thành viên cần thăng chức
                 GroupMember memberToPromote = groupMemberRepository.findByGroupAndUser(group,
                                 userRepository.findById(userId)
                                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                                 "User not found with id: " + userId)))
                                 .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
 
-                memberToPromote.setRole(true);
+                if (memberToPromote.getRole() == GroupRole.LEADER) {
+                        throw new BadRequestException("Cannot change role of group leader");
+                }
+
+                memberToPromote.setRole(GroupRole.DEPUTY);
                 groupMemberRepository.save(memberToPromote);
+        }
+
+        @Transactional
+        public void demoteToMember(Long groupId, Long userId, Long leaderId) {
+                Group group = groupRepository.findById(groupId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Group not found with id: " + groupId));
+
+                // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
+                GroupMember leaderMember = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(leaderId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Leader not found with id: " + leaderId)))
+                                .orElseThrow(() -> new UnauthorizedException("Leader is not a member of this group"));
+
+                if (leaderMember.getRole() != GroupRole.LEADER) {
+                        throw new UnauthorizedException("Only group leader can demote members");
+                }
+
+                // Tìm thành viên cần hạ chức
+                GroupMember memberToDemote = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(userId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "User not found with id: " + userId)))
+                                .orElseThrow(() -> new BadRequestException("User is not a member of this group"));
+
+                if (memberToDemote.getRole() == GroupRole.LEADER) {
+                        throw new BadRequestException("Cannot demote group leader");
+                }
+
+                memberToDemote.setRole(GroupRole.MEMBER);
+                groupMemberRepository.save(memberToDemote);
+        }
+
+        @Transactional
+        public void transferLeadership(Long groupId, Long newLeaderId, Long currentLeaderId) {
+                Group group = groupRepository.findById(groupId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Group not found with id: " + groupId));
+
+                // Kiểm tra xem người thực hiện có phải là trưởng nhóm không
+                GroupMember currentLeader = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(currentLeaderId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Current leader not found with id: "
+                                                                                + currentLeaderId)))
+                                .orElseThrow(() -> new UnauthorizedException(
+                                                "Current leader is not a member of this group"));
+
+                if (currentLeader.getRole() != GroupRole.LEADER) {
+                        throw new UnauthorizedException("Only group leader can transfer leadership");
+                }
+
+                // Tìm thành viên được chọn làm trưởng nhóm mới
+                GroupMember newLeader = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(newLeaderId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "New leader not found with id: " + newLeaderId)))
+                                .orElseThrow(() -> new BadRequestException("New leader is not a member of this group"));
+
+                // Chuyển quyền trưởng nhóm
+                currentLeader.setRole(GroupRole.MEMBER);
+                newLeader.setRole(GroupRole.LEADER);
+
+                groupMemberRepository.save(currentLeader);
+                groupMemberRepository.save(newLeader);
         }
 
         /**
@@ -467,7 +538,7 @@ public class GroupService {
                 userDto.setAvatarUrl(member.getUser().getAvatarUrl());
 
                 dto.setUser(userDto);
-                dto.setAdmin(member.isRole());
+                dto.setRole(member.getRole());
                 return dto;
         }
 }

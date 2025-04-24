@@ -229,26 +229,76 @@ public class GroupController {
                 return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Thăng cấp thành quản trị viên", description = "Thăng cấp một thành viên nhóm thành quản trị viên")
+        @Operation(summary = "Thăng cấp thành phó nhóm", description = "Thăng cấp một thành viên nhóm thành phó nhóm")
         @ApiResponses(value = {
-                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thăng cấp thành quản trị viên thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thăng cấp thành phó nhóm thành công"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền thăng cấp thành viên"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng")
         })
-        @PostMapping("/{id}/admins/{userId}")
-        public ResponseEntity<ApiResponse<Void>> makeAdmin(
+        @PostMapping("/{id}/deputies/{userId}")
+        public ResponseEntity<ApiResponse<Void>> makeDeputy(
                         @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
                         @Parameter(description = "ID của người dùng cần thăng cấp", required = true) @PathVariable Long userId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
-                Long adminId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                groupService.makeAdmin(id, userId, adminId);
+                Long leaderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                groupService.makeDeputy(id, userId, leaderId);
 
                 ApiResponse<Void> response = ApiResponse.<Void>builder()
                                 .success(true)
-                                .message("Đã thăng cấp thành viên thành quản trị viên")
+                                .message("Đã thăng cấp thành viên thành phó nhóm")
                                 .id(id)
                                 .data("userId", userId)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
+
+        @Operation(summary = "Hạ cấp xuống thành viên thường", description = "Hạ cấp một phó nhóm xuống thành viên thường")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Hạ cấp thành viên thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền hạ cấp thành viên"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng")
+        })
+        @PostMapping("/{id}/members/{userId}/demote")
+        public ResponseEntity<ApiResponse<Void>> demoteToMember(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "ID của người dùng cần hạ cấp", required = true) @PathVariable Long userId,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                Long leaderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                groupService.demoteToMember(id, userId, leaderId);
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Đã hạ cấp xuống thành viên thường")
+                                .id(id)
+                                .data("userId", userId)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
+
+        @Operation(summary = "Chuyển quyền trưởng nhóm", description = "Chuyển quyền trưởng nhóm cho một thành viên khác")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chuyển quyền trưởng nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền chuyển quyền trưởng nhóm"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm hoặc người dùng")
+        })
+        @PostMapping("/{id}/transfer-leadership/{newLeaderId}")
+        public ResponseEntity<ApiResponse<Void>> transferLeadership(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(description = "ID của người dùng được chọn làm trưởng nhóm mới", required = true) @PathVariable Long newLeaderId,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                Long currentLeaderId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                groupService.transferLeadership(id, newLeaderId, currentLeaderId);
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Đã chuyển quyền trưởng nhóm thành công")
+                                .id(id)
+                                .data("newLeaderId", newLeaderId)
                                 .build();
 
                 return ResponseEntity.ok(response);

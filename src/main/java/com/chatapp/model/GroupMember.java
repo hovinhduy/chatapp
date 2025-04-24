@@ -1,5 +1,6 @@
 package com.chatapp.model;
 
+import com.chatapp.enums.GroupRole;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,5 +24,7 @@ public class GroupMember {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    private boolean role; // true for admin, false for member
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private GroupRole role = GroupRole.MEMBER; // Mặc định là thành viên
 }
