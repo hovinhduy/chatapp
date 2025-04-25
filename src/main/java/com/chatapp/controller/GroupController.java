@@ -59,6 +59,56 @@ public class GroupController {
                 return ResponseEntity.ok(response);
         }
 
+        @Operation(summary = "Tạo nhóm với ảnh đại diện", description = "Tạo một nhóm chat mới với ảnh đại diện (tùy chọn), bạn bè làm thành viên và tự động tạo cuộc trò chuyện nhóm tương ứng")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Dữ liệu nhóm không hợp lệ hoặc lỗi khi tải ảnh")
+        })
+        @PostMapping(value = "/with-avatar", consumes = { "multipart/form-data" })
+        public ResponseEntity<ApiResponse<GroupDto>> createGroupWithAvatar(
+                        @Parameter(description = "Tên nhóm", required = true) @RequestParam("name") String name,
+                        @Parameter(description = "Danh sách ID thành viên, cách nhau bởi dấu phẩy", required = true) @RequestParam("memberIds") String memberIdsStr,
+                        @Parameter(description = "Tệp ảnh đại diện nhóm (tùy chọn)") @RequestParam(value = "file", required = false) MultipartFile file,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) throws IOException {
+
+                // Khởi tạo fileUrl là null
+                String fileUrl = null;
+
+                // Chỉ tải lên ảnh đại diện nếu file không phải null
+                if (file != null && !file.isEmpty()) {
+                        fileUrl = fileStorageService.uploadFile(file);
+                }
+
+                // Chuyển đổi chuỗi memberIds thành List<Long>
+                List<Long> memberIds = new java.util.ArrayList<>();
+                for (String id : memberIdsStr.split(",")) {
+                        if (!id.trim().isEmpty()) {
+                                memberIds.add(Long.parseLong(id.trim()));
+                        }
+                }
+
+                // Tạo đối tượng GroupCreateDto
+                GroupCreateDto groupCreateDto = new GroupCreateDto();
+                groupCreateDto.setName(name);
+                groupCreateDto.setAvatarUrl(fileUrl); // Có thể là null
+                groupCreateDto.setMemberIds(memberIds);
+
+                // Lấy userId của người đang đăng nhập
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+
+                // Gọi service để tạo nhóm
+                GroupDto createdGroup = groupService.createGroup(groupCreateDto, userId);
+
+                ApiResponse<GroupDto> response = ApiResponse.<GroupDto>builder()
+                                .success(true)
+                                .message("Nhóm đã được tạo thành công" + (fileUrl != null ? " với ảnh đại diện" : ""))
+                                .payload(createdGroup)
+                                .data("avatarUrl", fileUrl)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
+
         @Operation(summary = "Lấy nhóm theo ID", description = "Lấy thông tin chi tiết của nhóm theo ID")
         @ApiResponses(value = {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin nhóm thành công"),
