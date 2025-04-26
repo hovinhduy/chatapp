@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import com.chatapp.service.EncryptionService;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -78,6 +79,9 @@ public class ConversationController {
 
         @Autowired
         private AttachmentsService attachmentsService;
+
+        @Autowired
+        private EncryptionService encryptionService;
 
         @Operation(summary = "Lấy danh sách cuộc trò chuyện", description = "Lấy tất cả các cuộc trò chuyện của người dùng hiện tại")
         @ApiResponses(value = {
@@ -230,7 +234,11 @@ public class ConversationController {
                 Message message = new Message();
                 message.setSender(userRepository.findById(senderId).orElseThrow());
                 message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                message.setContent(messageDto.getContent());
+
+                // Mã hóa nội dung tin nhắn trước khi lưu vào database
+                String encryptedContent = encryptionService.encrypt(messageDto.getContent());
+                message.setContent(encryptedContent);
+
                 message.setType(MessageType.TEXT);
                 message.setCreatedAt(LocalDateTime.now());
 
@@ -269,7 +277,11 @@ public class ConversationController {
                 Message message = new Message();
                 message.setSender(sender);
                 message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                message.setContent(messageDto.getContent());
+
+                // Mã hóa nội dung tin nhắn trước khi lưu vào database
+                String encryptedContent = encryptionService.encrypt(messageDto.getContent());
+                message.setContent(encryptedContent);
+
                 message.setType(MessageType.TEXT);
                 message.setCreatedAt(LocalDateTime.now());
 
@@ -421,7 +433,10 @@ public class ConversationController {
                 Message newMessage = new Message();
                 newMessage.setSender(userRepository.findById(senderId).orElseThrow());
                 newMessage.setConversation(conversationRepository.findById(conversationId).orElseThrow());
+
+                // Lấy nội dung đã được mã hóa từ tin nhắn gốc
                 newMessage.setContent(originalMessage.getContent());
+
                 newMessage.setType(originalMessage.getType());
                 newMessage.setCreatedAt(LocalDateTime.now());
 
@@ -481,7 +496,11 @@ public class ConversationController {
                                 Message message = new Message();
                                 message.setSender(userRepository.findById(senderId).orElseThrow());
                                 message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                                message.setContent(attachment.getName());
+
+                                // Mã hóa tên file
+                                String encryptedContent = encryptionService.encrypt(attachment.getName());
+                                message.setContent(encryptedContent);
+
                                 message.setType(messageType);
                                 message.setCreatedAt(LocalDateTime.now());
 
@@ -500,11 +519,10 @@ public class ConversationController {
 
                         return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
                                         .success(true)
-                                        .message("Upload " + files.length + " file thành công")
+                                        .message("Upload file thành công")
                                         .payload(savedMessages)
                                         .build());
-
-                } catch (IOException e) {
+                } catch (Exception e) {
                         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                         .body(ApiResponse.<List<MessageDto>>builder()
                                                         .success(false)
@@ -513,7 +531,6 @@ public class ConversationController {
                 }
         }
 
-        // WebSocket upload file realtime
         @MessageMapping("/conversation/{conversationId}/upload")
         @SendTo("/queue/conversation/{conversationId}")
         public List<MessageDto> handleFileUpload(
@@ -527,7 +544,6 @@ public class ConversationController {
                         throw new AccessDeniedException("Bạn không có quyền gửi file trong cuộc trò chuyện này");
                 }
 
-                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
                 if (conversationService.isConversationBlocked(conversationId)) {
                         throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
                 }
@@ -543,7 +559,11 @@ public class ConversationController {
                         Message message = new Message();
                         message.setSender(userRepository.findById(senderId).orElseThrow());
                         message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                        message.setContent(attachment.getName());
+
+                        // Mã hóa tên file
+                        String encryptedContent = encryptionService.encrypt(attachment.getName());
+                        message.setContent(encryptedContent);
+
                         message.setType(messageType);
                         message.setCreatedAt(LocalDateTime.now());
 

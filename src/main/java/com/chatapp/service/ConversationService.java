@@ -61,6 +61,9 @@ public class ConversationService {
         @Autowired
         private GroupRepository groupRepository;
 
+        @Autowired
+        private EncryptionService encryptionService;
+
         public List<ConversationDto> getConversationsByUserId(Long userId) {
                 User user = userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -255,7 +258,11 @@ public class ConversationService {
                 dto.setId(message.getMessageId());
                 dto.setConversationId(message.getConversation().getId());
                 dto.setSenderId(message.getSender().getUserId());
-                dto.setContent(message.getContent());
+
+                // Giải mã nội dung tin nhắn trước khi trả về
+                String decryptedContent = encryptionService.decrypt(message.getContent());
+                dto.setContent(decryptedContent);
+
                 dto.setCreatedAt(message.getCreatedAt());
                 dto.setType(message.getType().name());
                 dto.setSenderName(message.getSender().getDisplayName());
@@ -416,4 +423,23 @@ public class ConversationService {
                 conversationRepository.delete(conversation);
         }
 
+        /**
+         * Phương thức để mã hóa nội dung tin nhắn trước khi lưu vào database
+         * 
+         * @param content Nội dung tin nhắn cần mã hóa
+         * @return Nội dung đã được mã hóa
+         */
+        public String encryptMessageContent(String content) {
+                return encryptionService.encrypt(content);
+        }
+
+        /**
+         * Phương thức để giải mã nội dung tin nhắn
+         * 
+         * @param encryptedContent Nội dung đã được mã hóa
+         * @return Nội dung gốc sau khi giải mã
+         */
+        public String decryptMessageContent(String encryptedContent) {
+                return encryptionService.decrypt(encryptedContent);
+        }
 }

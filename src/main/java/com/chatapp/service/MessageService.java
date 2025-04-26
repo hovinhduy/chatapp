@@ -29,6 +29,7 @@ public class MessageService {
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final EncryptionService encryptionService;
 
     /**
      * Constructor để dependency injection
@@ -40,15 +41,21 @@ public class MessageService {
      * @param groupMemberRepository Repository xử lý thao tác với database của
      *                              GroupMember
      * @param messagingTemplate     Template để gửi tin nhắn WebSocket
+     * @param encryptionService     Service để mã hóa và giải mã tin nhắn
      */
-    public MessageService(MessageRepository messageRepository, UserRepository userRepository,
-            GroupRepository groupRepository, GroupMemberRepository groupMemberRepository,
-            SimpMessagingTemplate messagingTemplate) {
+    public MessageService(
+            MessageRepository messageRepository,
+            UserRepository userRepository,
+            GroupRepository groupRepository,
+            GroupMemberRepository groupMemberRepository,
+            SimpMessagingTemplate messagingTemplate,
+            EncryptionService encryptionService) {
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.messagingTemplate = messagingTemplate;
+        this.encryptionService = encryptionService;
     }
 
     /**
@@ -72,7 +79,11 @@ public class MessageService {
         Message message = new Message();
         message.setSender(sender);
         message.setReceiver(receiver);
-        message.setContent(messageDto.getContent());
+
+        // Mã hóa nội dung tin nhắn trước khi lưu vào database
+        String encryptedContent = encryptionService.encrypt(messageDto.getContent());
+        message.setContent(encryptedContent);
+
         message.setType(MessageType.TEXT);
 
         if (messageDto.getType() != null) {
@@ -109,7 +120,11 @@ public class MessageService {
         Message message = new Message();
         message.setSender(sender);
         message.setGroup(group);
-        message.setContent(messageDto.getContent());
+
+        // Mã hóa nội dung tin nhắn trước khi lưu vào database
+        String encryptedContent = encryptionService.encrypt(messageDto.getContent());
+        message.setContent(encryptedContent);
+
         message.setType(MessageType.TEXT);
 
         if (messageDto.getType() != null) {
@@ -186,7 +201,10 @@ public class MessageService {
             throw new UnauthorizedException("Bạn chỉ có thể chỉnh sửa tin nhắn của chính mình");
         }
 
-        message.setContent(newContent);
+        // Mã hóa nội dung tin nhắn mới trước khi lưu vào database
+        String encryptedContent = encryptionService.encrypt(newContent);
+        message.setContent(encryptedContent);
+
         Message updatedMessage = messageRepository.save(message);
 
         MessageDto updatedMessageDto = mapToDto(updatedMessage);
@@ -282,7 +300,10 @@ public class MessageService {
             dto.setConversationId(message.getConversation().getId());
         }
 
-        dto.setContent(message.getContent());
+        // Giải mã nội dung tin nhắn trước khi trả về cho client
+        String decryptedContent = encryptionService.decrypt(message.getContent());
+        dto.setContent(decryptedContent);
+
         dto.setCreatedAt(message.getCreatedAt());
 
         dto.setType(message.getType().name());
