@@ -376,4 +376,27 @@ public class GroupController {
 
                 return ResponseEntity.ok(response);
         }
+
+        @Operation(summary = "Rời khỏi nhóm", description = "Cho phép thành viên rời khỏi nhóm (trưởng nhóm không thể rời khỏi, phải chuyển quyền trước)")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Rời khỏi nhóm thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Không thể rời khỏi nhóm (trưởng nhóm hoặc không phải thành viên)"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy nhóm")
+        })
+        @PostMapping("/{id}/leave")
+        public ResponseEntity<ApiResponse<Void>> leaveGroup(
+                        @Parameter(description = "ID của nhóm", required = true) @PathVariable Long id,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                groupService.leaveGroup(id, userId);
+
+                ApiResponse<Void> response = ApiResponse.<Void>builder()
+                                .success(true)
+                                .message("Bạn đã rời khỏi nhóm thành công")
+                                .id(id)
+                                .build();
+
+                return ResponseEntity.ok(response);
+        }
 }

@@ -551,6 +551,44 @@ public class GroupService {
         }
 
         /**
+         * Cho phép thành viên rời khỏi nhóm
+         * 
+         * @param groupId ID của nhóm
+         * @param userId  ID của người dùng muốn rời khỏi nhóm
+         * @throws ResourceNotFoundException Nếu không tìm thấy nhóm hoặc người dùng
+         * @throws BadRequestException       Nếu người dùng không phải là thành viên
+         *                                   hoặc là trưởng nhóm
+         */
+        @Transactional
+        public void leaveGroup(Long groupId, Long userId) {
+                Group group = groupRepository.findById(groupId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy nhóm với id: " + groupId));
+
+                // Tìm thành viên muốn rời khỏi
+                GroupMember member = groupMemberRepository.findByGroupAndUser(group,
+                                userRepository.findById(userId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Không tìm thấy người dùng với id: " + userId)))
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Bạn không phải là thành viên của nhóm này"));
+
+                // Trưởng nhóm không được phép rời khỏi nhóm (phải chuyển quyền trước)
+                if (member.getRole() == GroupRole.LEADER) {
+                        throw new BadRequestException(
+                                        "Trưởng nhóm không thể rời khỏi nhóm. Vui lòng chuyển quyền trưởng nhóm trước khi rời khỏi");
+                }
+
+                // Xóa thành viên khỏi nhóm
+                groupMemberRepository.delete(member);
+
+                // Xóa người dùng khỏi cuộc trò chuyện của nhóm (nếu có)
+                if (group.getConversation() != null) {
+                        conversationService.removeUserFromConversation(group.getConversation().getId(), userId);
+                }
+        }
+
+        /**
          * Chuyển đổi đối tượng Group thành GroupDto
          * 
          * @param group Đối tượng Group cần chuyển đổi
