@@ -273,7 +273,9 @@ public class GroupService {
                         throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể cập nhật thông tin nhóm");
                 }
 
-                group.setName(groupDto.getName());
+                if (groupDto.getName() != null) {
+                        group.setName(groupDto.getName());
+                }
                 if (groupDto.getAvatarUrl() != null) {
                         group.setAvatarUrl(groupDto.getAvatarUrl());
                 }
