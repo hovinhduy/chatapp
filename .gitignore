@@ -59,7 +59,6 @@ firebase-service-account.json
 
 test.html
 
-Dockerfile
 .dockerignore
 docker-compose.yml
 
