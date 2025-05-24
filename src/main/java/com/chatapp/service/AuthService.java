@@ -10,12 +10,15 @@ import com.chatapp.dto.request.ForgotPasswordRequest;
 import com.chatapp.dto.request.LoginDto;
 import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.dto.request.DeviceInfoDto;
 import com.chatapp.exception.ResourceAlreadyExistsException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.exception.UnauthorizedException;
 import com.chatapp.model.RefreshToken;
 import com.chatapp.model.User;
+import com.chatapp.model.UserDeviceSession;
+import com.chatapp.model.Token;
 import com.chatapp.repository.OtpRepository;
 import com.chatapp.repository.UserRepository;
 import com.chatapp.security.JwtTokenProvider;
@@ -44,6 +47,7 @@ public class AuthService {
     private final OtpRepository otpRepository;
     private final RefreshTokenService refreshTokenService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final DeviceSessionService deviceSessionService;
 
     /**
      * Constructor để dependency injection
@@ -53,11 +57,12 @@ public class AuthService {
      * @param authenticationManager Manager xử lý xác thực
      * @param tokenProvider         Provider tạo và xác thực JWT token
      * @param userService           Service xử lý các thao tác liên quan đến User
+     * @param deviceSessionService  Service xử lý device session
      */
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
             UserService userService, OtpRepository otpRepository, RefreshTokenService refreshTokenService,
-            TokenBlacklistService tokenBlacklistService) {
+            TokenBlacklistService tokenBlacklistService, DeviceSessionService deviceSessionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
@@ -66,35 +71,27 @@ public class AuthService {
         this.otpRepository = otpRepository;
         this.refreshTokenService = refreshTokenService;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.deviceSessionService = deviceSessionService;
     }
 
     /**
      * Đăng ký người dùng mới
      * 
      * @param registerRequest Đối tượng chứa thông tin đăng ký
+     * @param deviceInfo      Thông tin thiết bị
      * @return AuthResponseDto Đối tượng chứa token và thông tin người dùng
      * @throws ResourceAlreadyExistsException Nếu số điện thoại đã được đăng ký
      */
-    public AuthResponseDto register(RegisterRequest registerRequest) {
+    public AuthResponseDto register(RegisterRequest registerRequest, DeviceInfoDto deviceInfo) {
         // Check if phone already exists
         if (userRepository.existsByPhone(registerRequest.getPhone())) {
             throw new ResourceAlreadyExistsException("Số điện thoại đã được đăng ký");
         }
-        // // kiểm tra email tồn tại chưa
-        // if (userRepository.existsByEmail(registerDto.getEmail())) {
-        // throw new ResourceAlreadyExistsException("Email đã được đăng ký");
-        // }
-        // // kiểm tra email đã verify chưa
-        // if (!otpRepository.existsByEmailAndStatus(registerDto.getEmail(),
-        // OtpStatus.VERIFIED)) {
-        // throw new ResourceAlreadyExistsException("Email chưa được xác thực");
-        // }
 
         // Create user
         UserDto userDto = new UserDto();
         userDto.setDisplayName(registerRequest.getDisplayName());
         userDto.setPhone(registerRequest.getPhone());
-        // userDto.setEmail(registerDto.getEmail());
         userDto.setGender(Gender.valueOf(registerRequest.getGender()));
         if (registerRequest.getDateOfBirth() != null) {
             if (registerRequest.getDateOfBirth().isAfter(LocalDate.now().minusYears(14))) {
@@ -107,14 +104,25 @@ public class AuthService {
         userDto.setStatus(UserStatus.ONLINE);
 
         UserDto savedUser = userService.createUser(userDto);
+        User user = userRepository.findById(savedUser.getUserId()).orElseThrow();
 
-        // Generate token
-        String token = tokenProvider.generateToken(savedUser.getPhone());
+        // Tạo device session mới
+        UserDeviceSession deviceSession = deviceSessionService.createDeviceSession(user, deviceInfo);
 
-        // Tạo refresh token
+        // Generate tokens với sessionId
+        String accessToken = tokenProvider.generateToken(registerRequest.getPhone(), deviceSession.getId());
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser.getUserId());
 
-        AuthResponseDto authResponse = new AuthResponseDto(token, savedUser);
+        // Tính toán thời gian hết hạn
+        LocalDateTime accessExpiry = LocalDateTime.now().plusHours(24); // 24 giờ
+        LocalDateTime refreshExpiry = refreshToken.getExpiryDate().atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+
+        // Tạo token record
+        deviceSessionService.createTokenForSession(deviceSession, accessToken, refreshToken.getToken(),
+                accessExpiry, refreshExpiry);
+
+        AuthResponseDto authResponse = new AuthResponseDto(accessToken, savedUser);
         authResponse.setRefreshToken(refreshToken.getToken());
 
         return authResponse;
@@ -123,12 +131,13 @@ public class AuthService {
     /**
      * Đăng nhập người dùng
      * 
-     * @param loginDto Đối tượng chứa thông tin đăng nhập (số điện thoại và mật
-     *                 khẩu)
+     * @param loginDto   Đối tượng chứa thông tin đăng nhập (số điện thoại và mật
+     *                   khẩu)
+     * @param deviceInfo Thông tin thiết bị
      * @return AuthResponseDto Đối tượng chứa token và thông tin người dùng
      * @throws UnauthorizedException Nếu thông tin đăng nhập không hợp lệ
      */
-    public AuthResponseDto login(LoginDto loginDto) {
+    public AuthResponseDto login(LoginDto loginDto, DeviceInfoDto deviceInfo) {
         try {
             // Kiểm tra xem số điện thoại có tồn tại không
             if (!userRepository.existsByPhone(loginDto.getPhone())) {
@@ -143,16 +152,31 @@ public class AuthService {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                String token = tokenProvider.generateToken(loginDto.getPhone());
                 UserDto userDto = userService.getUserByPhone(loginDto.getPhone());
+                User user = userRepository.findById(userDto.getUserId()).orElseThrow();
+
+                // Tạo device session mới
+                UserDeviceSession deviceSession = deviceSessionService.createDeviceSession(user, deviceInfo);
+
+                // Generate tokens với sessionId
+                String accessToken = tokenProvider.generateToken(loginDto.getPhone(), deviceSession.getId());
+                RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDto.getUserId());
+
+                // Tính toán thời gian hết hạn
+                LocalDateTime accessExpiry = LocalDateTime.now().plusHours(24); // 24 giờ
+                LocalDateTime refreshExpiry = refreshToken.getExpiryDate().atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime();
+
+                // Tạo token record
+                deviceSessionService.createTokenForSession(deviceSession, accessToken, refreshToken.getToken(),
+                        accessExpiry, refreshExpiry);
+
+                // Cập nhật user info
                 userDto.setLastLogin(LocalDateTime.now());
                 userDto.setStatus(UserStatus.ONLINE);
                 userService.updateUser(userDto.getUserId(), userDto);
 
-                // Tạo refresh token
-                RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDto.getUserId());
-
-                AuthResponseDto authResponse = new AuthResponseDto(token, userDto);
+                AuthResponseDto authResponse = new AuthResponseDto(accessToken, userDto);
                 authResponse.setRefreshToken(refreshToken.getToken());
 
                 return authResponse;
@@ -180,8 +204,23 @@ public class AuthService {
                 .map(refreshTokenService::verifyExpiration)
                 .map(RefreshToken::getUser)
                 .map(user -> {
-                    String token = tokenProvider.generateToken(user.getPhone());
-                    return new TokenRefreshResponse(token, requestRefreshToken);
+                    // Tìm device session từ refresh token
+                    String sessionId = null;
+                    try {
+                        // Kiểm tra nếu refresh token có sessionId
+                        sessionId = tokenProvider.getSessionIdFromToken(requestRefreshToken);
+                    } catch (Exception e) {
+                        // Nếu không có sessionId trong token, tạo token cũ (tương thích ngược)
+                    }
+
+                    String newAccessToken;
+                    if (sessionId != null) {
+                        newAccessToken = tokenProvider.generateToken(user.getPhone(), sessionId);
+                    } else {
+                        newAccessToken = tokenProvider.generateToken(user.getPhone());
+                    }
+
+                    return new TokenRefreshResponse(newAccessToken, requestRefreshToken);
                 })
                 .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
                         "Refresh token không tồn tại trong hệ thống"));
@@ -195,6 +234,19 @@ public class AuthService {
      */
     public boolean logout(LogoutRequest request) {
         try {
+            // Lấy sessionId từ access token
+            String sessionId = null;
+            try {
+                sessionId = tokenProvider.getSessionIdFromToken(request.getAccessToken());
+            } catch (Exception e) {
+                // Token không có sessionId, xử lý logout cũ
+            }
+
+            // Đăng xuất device session nếu có sessionId
+            if (sessionId != null) {
+                deviceSessionService.logoutDeviceSession(sessionId, "manual_logout");
+            }
+
             // Thêm access token vào blacklist
             tokenBlacklistService.blacklistToken(request.getAccessToken());
 

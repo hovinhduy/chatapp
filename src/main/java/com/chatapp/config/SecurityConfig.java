@@ -3,6 +3,7 @@ package com.chatapp.config;
 import com.chatapp.security.JwtAuthenticationFilter;
 import com.chatapp.security.JwtTokenProvider;
 import com.chatapp.service.TokenBlacklistService;
+import com.chatapp.service.DeviceSessionService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,10 +22,13 @@ public class SecurityConfig {
 
     private final JwtTokenProvider tokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
+    private final DeviceSessionService deviceSessionService;
 
-    public SecurityConfig(JwtTokenProvider tokenProvider, TokenBlacklistService tokenBlacklistService) {
+    public SecurityConfig(JwtTokenProvider tokenProvider, TokenBlacklistService tokenBlacklistService,
+            DeviceSessionService deviceSessionService) {
         this.tokenProvider = tokenProvider;
         this.tokenBlacklistService = tokenBlacklistService;
+        this.deviceSessionService = deviceSessionService;
     }
 
     @Bean
@@ -40,7 +44,8 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("*").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(new JwtAuthenticationFilter(tokenProvider, tokenBlacklistService),
+                .addFilterBefore(
+                        new JwtAuthenticationFilter(tokenProvider, tokenBlacklistService, deviceSessionService),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -8,10 +8,12 @@ import com.chatapp.dto.request.LogoutRequest;
 import com.chatapp.dto.request.RefreshTokenRequest;
 import com.chatapp.dto.request.RegisterRequest;
 import com.chatapp.dto.request.TokenVerificationRequest;
+import com.chatapp.dto.request.DeviceInfoDto;
 import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.exception.TokenRefreshException;
 import com.chatapp.service.AuthService;
 import com.chatapp.service.UserService;
+import com.chatapp.service.DeviceSessionService;
 import com.chatapp.repository.UserRepository;
 import com.google.firebase.auth.FirebaseToken;
 
@@ -47,6 +49,9 @@ public class AuthController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private DeviceSessionService deviceSessionService;
 
     /**
      * API xác minh token từ Firebase
@@ -91,8 +96,7 @@ public class AuthController {
     }
 
     /**
-     * API đăng ký người dùng mới
-     * Yêu cầu token đã được xác thực từ Firebase
+     * API đăng ký người dùng
      */
     @Operation(summary = "Đăng ký người dùng", description = "Đăng ký người dùng mới")
     @ApiResponses(value = {
@@ -100,36 +104,37 @@ public class AuthController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Yêu cầu không hợp lệ")
     })
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest,
+            HttpServletRequest request) {
         try {
-            // Xác minh token (bắt buộc phải có)
-            FirebaseToken decodedToken = firebaseConfig.verifyIdToken(registerRequest.getIdToken());
+            // Debug: In ra tất cả headers
+            System.out.println("=== REGISTER DEBUG HEADERS ===");
+            request.getHeaderNames().asIterator().forEachRemaining(headerName -> {
+                String headerValue = request.getHeader(headerName);
+                System.out.println(headerName + ": " + headerValue);
+            });
+            System.out.println("=== END REGISTER DEBUG HEADERS ===");
 
-            // Kiểm tra số điện thoại từ token có khớp với số trong request
-            String phoneFromToken = decodedToken.getClaims().get("phone_number").toString();
-            String phoneFromRequest = registerRequest.getPhone();
+            // Lấy thông tin thiết bị từ header
+            DeviceInfoDto deviceInfo = deviceSessionService.extractDeviceInfo(request);
 
-            // Format số điện thoại để so sánh (đảm bảo định dạng nhất quán)
-            String formattedPhoneFromToken = formatPhoneNumber(phoneFromToken);
-            String formattedPhoneFromRequest = formatPhoneNumber(phoneFromRequest);
+            // Debug: In ra device info đã extract
+            System.out.println("=== REGISTER EXTRACTED DEVICE INFO ===");
+            System.out.println("Platform: " + deviceInfo.getPlatform());
+            System.out.println("Device Model: " + deviceInfo.getDeviceModel());
+            System.out.println("Device ID: " + deviceInfo.getDeviceId());
+            System.out.println("IP Address: " + deviceInfo.getIpAddress());
+            System.out.println("=== END REGISTER DEVICE INFO ===");
 
-            if (!formattedPhoneFromToken.equals(formattedPhoneFromRequest)) {
-                ApiResponse<Object> response = new ApiResponse<>();
-                response.setSuccess(false);
-                response.setMessage("Số điện thoại không khớp với token xác thực");
-
-                return ResponseEntity.badRequest().body(response);
-            }
-
-            // Đăng ký người dùng mới
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(true);
             response.setMessage("Đăng ký người dùng thành công");
-            response.setPayload(authService.register(registerRequest));
+            response.setPayload(authService.register(registerRequest, deviceInfo));
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            e.printStackTrace(); // Thêm stack trace để debug
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(false);
             response.setMessage("Lỗi xác thực: " + e.getMessage());
@@ -149,17 +154,33 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginDto loginRequest, HttpServletRequest request) {
         try {
-            String userAgent = request.getHeader("User-Agent");
-            // Ví dụ: ghi log thông tin User-Agent, bạn có thể chuyển thông tin này đến
-            // authService hoặc lưu vào DB
-            System.out.println("User-Agent: " + userAgent);
+            // Debug: In ra tất cả headers
+            System.out.println("=== DEBUG HEADERS ===");
+            request.getHeaderNames().asIterator().forEachRemaining(headerName -> {
+                String headerValue = request.getHeader(headerName);
+                System.out.println(headerName + ": " + headerValue);
+            });
+            System.out.println("=== END DEBUG HEADERS ===");
+
+            // Lấy thông tin thiết bị từ header
+            DeviceInfoDto deviceInfo = deviceSessionService.extractDeviceInfo(request);
+
+            // Debug: In ra device info đã extract
+            System.out.println("=== EXTRACTED DEVICE INFO ===");
+            System.out.println("Platform: " + deviceInfo.getPlatform());
+            System.out.println("Device Model: " + deviceInfo.getDeviceModel());
+            System.out.println("Device ID: " + deviceInfo.getDeviceId());
+            System.out.println("IP Address: " + deviceInfo.getIpAddress());
+            System.out.println("=== END DEVICE INFO ===");
+
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(true);
             response.setMessage("Đăng nhập thành công");
-            response.setPayload(authService.login(loginRequest));
+            response.setPayload(authService.login(loginRequest, deviceInfo));
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            e.printStackTrace(); // Thêm stack trace để debug
             ApiResponse<Object> response = new ApiResponse<>();
             response.setSuccess(false);
             response.setMessage("Lỗi đăng nhập: " + e.getMessage());
@@ -305,5 +326,34 @@ public class AuthController {
             return "0" + phone.substring(3);
         }
         return phone;
+    }
+
+    /**
+     * Test endpoint để kiểm tra headers
+     */
+    @PostMapping("/test-headers")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> testHeaders(HttpServletRequest request) {
+        Map<String, Object> headerInfo = new HashMap<>();
+
+        // Lấy tất cả headers
+        request.getHeaderNames().asIterator().forEachRemaining(headerName -> {
+            headerInfo.put(headerName, request.getHeader(headerName));
+        });
+
+        // Lấy device info
+        DeviceInfoDto deviceInfo = deviceSessionService.extractDeviceInfo(request);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("allHeaders", headerInfo);
+        result.put("deviceInfo", deviceInfo);
+        result.put("userAgent", request.getHeader("User-Agent"));
+        result.put("remoteAddr", request.getRemoteAddr());
+
+        ApiResponse<Map<String, Object>> response = new ApiResponse<>();
+        response.setSuccess(true);
+        response.setMessage("Headers received successfully");
+        response.setPayload(result);
+
+        return ResponseEntity.ok(response);
     }
 }

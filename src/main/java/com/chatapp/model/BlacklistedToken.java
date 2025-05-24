@@ -5,29 +5,37 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "blacklisted_tokens")
+@Table(name = "blacklist_tokens")
 public class BlacklistedToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 500)
+    @Column(nullable = false, length = 512)
     private String token;
 
-    @Column(nullable = false)
-    private Instant expiryDate;
+    @Column(name = "device_session_id", length = 36)
+    private String deviceSessionId;
 
-    @Column(nullable = false)
-    private Instant createdAt;
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(name = "blacklisted_at")
+    private LocalDateTime blacklistedAt;
+
+    @Column(length = 255)
+    private String reason; // manual_logout, session_kick, token_refresh, etc
 
     @PrePersist
     protected void onCreate() {
-        createdAt = Instant.now();
+        if (blacklistedAt == null) {
+            blacklistedAt = LocalDateTime.now();
+        }
     }
 }
