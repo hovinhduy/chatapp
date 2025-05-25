@@ -2,6 +2,7 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.request.FriendDto;
 import com.chatapp.dto.request.MessageDto;
+import com.chatapp.dto.response.FriendAcceptanceResponse;
 import com.chatapp.service.FriendService;
 import com.chatapp.service.MessageService;
 import com.chatapp.service.UserService;
@@ -50,11 +51,11 @@ public class WebSocketController {
 
     @MessageMapping("/friend.acceptRequest/{friendshipId}")
     @SendTo("/queue/user/{senderId}/friend-updates")
-    public FriendDto acceptFriendRequest(@DestinationVariable Long friendshipId,
+    public FriendAcceptanceResponse acceptFriendRequest(@DestinationVariable Long friendshipId,
             @DestinationVariable Long senderId,
             Principal principal) {
         Long userId = userService.getUserByPhone(principal.getName()).getUserId();
-        return friendService.acceptFriendRequest(friendshipId, userId);
+        return friendService.acceptFriendRequestWithConversation(friendshipId, userId);
     }
 
     @MessageMapping("/friend.rejectRequest/{friendshipId}")

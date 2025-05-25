@@ -2,6 +2,8 @@ package com.chatapp.service;
 
 import com.chatapp.dto.request.FriendDto;
 import com.chatapp.dto.request.UserDto;
+import com.chatapp.dto.request.ConversationDto;
+import com.chatapp.dto.response.FriendAcceptanceResponse;
 import com.chatapp.enums.FriendStatus;
 import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
@@ -9,6 +11,8 @@ import com.chatapp.model.Friend;
 import com.chatapp.model.User;
 import com.chatapp.repository.FriendRepository;
 import com.chatapp.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,18 +25,25 @@ import java.util.stream.Collectors;
 @Service
 public class FriendService {
 
+    private static final Logger logger = LoggerFactory.getLogger(FriendService.class);
+
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
+    private final ConversationService conversationService;
 
     /**
      * Constructor để dependency injection
      * 
-     * @param friendRepository Repository xử lý thao tác với database của Friend
-     * @param userRepository   Repository xử lý thao tác với database của User
+     * @param friendRepository    Repository xử lý thao tác với database của Friend
+     * @param userRepository      Repository xử lý thao tác với database của User
+     * @param conversationService Service xử lý các thao tác liên quan đến cuộc trò
+     *                            chuyện
      */
-    public FriendService(FriendRepository friendRepository, UserRepository userRepository) {
+    public FriendService(FriendRepository friendRepository, UserRepository userRepository,
+            ConversationService conversationService) {
         this.friendRepository = friendRepository;
         this.userRepository = userRepository;
+        this.conversationService = conversationService;
     }
 
     /**
@@ -73,7 +84,7 @@ public class FriendService {
     }
 
     /**
-     * Chấp nhận lời mời kết bạn
+     * Chấp nhận lời mời kết bạn và tự động tạo cuộc trò chuyện 1-1
      * 
      * @param friendshipId ID của mối quan hệ bạn bè
      * @param userId       ID của người dùng đang thực hiện hành động
@@ -100,7 +111,69 @@ public class FriendService {
 
         friend.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friend);
+
+        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người bạn
+        try {
+            conversationService.getOrCreateOneToOneConversation(
+                    friend.getUser1().getUserId(),
+                    friend.getUser2().getUserId());
+            logger.info("Đã tạo cuộc trò chuyện cho hai người bạn: {} và {}",
+                    friend.getUser1().getUserId(), friend.getUser2().getUserId());
+        } catch (Exception e) {
+            // Log lỗi nhưng không làm fail transaction chính
+            logger.error("Lỗi khi tạo cuộc trò chuyện cho hai người bạn {} và {}: {}",
+                    friend.getUser1().getUserId(), friend.getUser2().getUserId(), e.getMessage(), e);
+        }
+
         return mapToDto(updatedFriend);
+    }
+
+    /**
+     * Chấp nhận lời mời kết bạn và trả về thông tin cuộc trò chuyện được tạo
+     * 
+     * @param friendshipId ID của mối quan hệ bạn bè
+     * @param userId       ID của người dùng đang thực hiện hành động
+     * @return FriendAcceptanceResponse Thông tin về mối quan hệ bạn bè và cuộc trò
+     *         chuyện được tạo
+     * @throws ResourceNotFoundException Nếu không tìm thấy mối quan hệ bạn bè
+     * @throws BadRequestException       Nếu người dùng không phải là người nhận lời
+     *                                   mời hoặc lời mời không ở trạng thái chờ
+     */
+    @Transactional
+    public FriendAcceptanceResponse acceptFriendRequestWithConversation(Long friendshipId, Long userId) {
+        Friend friend = friendRepository.findById(friendshipId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy mối quan hệ bạn bè với id: " + friendshipId));
+
+        // Kiểm tra người dùng có phải là người nhận lời mời không
+        if (!friend.getUser2().getUserId().equals(userId)) {
+            throw new BadRequestException("Chỉ người nhận mới có thể chấp nhận lời mời kết bạn");
+        }
+
+        // Kiểm tra trạng thái có phải là CHỜ không
+        if (friend.getStatus() != FriendStatus.PENDING) {
+            throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
+        }
+
+        friend.setStatus(FriendStatus.ACCEPTED);
+        Friend updatedFriend = friendRepository.save(friend);
+
+        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người bạn
+        ConversationDto conversation = null;
+        try {
+            conversation = conversationService.getOrCreateOneToOneConversation(
+                    friend.getUser1().getUserId(),
+                    friend.getUser2().getUserId());
+            logger.info("Đã tạo cuộc trò chuyện cho hai người bạn: {} và {}",
+                    friend.getUser1().getUserId(), friend.getUser2().getUserId());
+        } catch (Exception e) {
+            // Log lỗi nhưng không làm fail transaction chính
+            logger.error("Lỗi khi tạo cuộc trò chuyện cho hai người bạn {} và {}: {}",
+                    friend.getUser1().getUserId(), friend.getUser2().getUserId(), e.getMessage(), e);
+        }
+
+        FriendDto friendDto = mapToDto(updatedFriend);
+        return new FriendAcceptanceResponse(friendDto, conversation);
     }
 
     /**

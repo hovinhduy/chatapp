@@ -2,6 +2,7 @@ package com.chatapp.controller;
 
 import com.chatapp.dto.request.FriendDto;
 import com.chatapp.dto.response.ApiResponse;
+import com.chatapp.dto.response.FriendAcceptanceResponse;
 import com.chatapp.service.FriendService;
 import com.chatapp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,26 +60,29 @@ public class FriendController {
                 return ResponseEntity.ok(response);
         }
 
-        @Operation(summary = "Chấp nhận lời mời kết bạn", description = "Chấp nhận lời mời kết bạn đang chờ xử lý")
+        @Operation(summary = "Chấp nhận lời mời kết bạn", description = "Chấp nhận lời mời kết bạn đang chờ xử lý và tự động tạo cuộc trò chuyện")
         @ApiResponses(value = {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chấp nhận lời mời kết bạn thành công"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền chấp nhận lời mời này"),
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy lời mời kết bạn")
         })
         @PostMapping("/accept/{friendshipId}")
-        public ResponseEntity<ApiResponse<FriendDto>> acceptFriendRequest(
+        public ResponseEntity<ApiResponse<FriendAcceptanceResponse>> acceptFriendRequest(
                         @Parameter(description = "Friendship ID", required = true) @PathVariable Long friendshipId,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
 
                 Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
-                FriendDto result = friendService.acceptFriendRequest(friendshipId, userId);
+                FriendAcceptanceResponse result = friendService.acceptFriendRequestWithConversation(friendshipId,
+                                userId);
 
                 // Gửi thông báo realtime đến người gửi lời mời kết bạn
-                messagingTemplate.convertAndSend("/queue/user/" + result.getSenderId() + "/friend-updates", result);
+                messagingTemplate.convertAndSend(
+                                "/queue/user/" + result.getFriendship().getSenderId() + "/friend-updates",
+                                result.getFriendship());
 
-                ApiResponse<FriendDto> response = ApiResponse.<FriendDto>builder()
+                ApiResponse<FriendAcceptanceResponse> response = ApiResponse.<FriendAcceptanceResponse>builder()
                                 .success(true)
-                                .message("Chấp nhận lời mời kết bạn thành công")
+                                .message("Chấp nhận lời mời kết bạn thành công và đã tạo cuộc trò chuyện")
                                 .payload(result)
                                 .build();
                 return ResponseEntity.ok(response);
