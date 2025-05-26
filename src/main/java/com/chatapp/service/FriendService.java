@@ -114,11 +114,26 @@ public class FriendService {
 
         // Tự động tạo cuộc trò chuyện 1-1 giữa hai người bạn
         try {
-            conversationService.getOrCreateOneToOneConversation(
+            ConversationDto conversation = conversationService.getOrCreateOneToOneConversation(
                     friend.getUser1().getUserId(),
                     friend.getUser2().getUserId());
             logger.info("Đã tạo cuộc trò chuyện cho hai người bạn: {} và {}",
                     friend.getUser1().getUserId(), friend.getUser2().getUserId());
+
+            // Gửi tin nhắn thông báo kết bạn thành công
+            if (conversation != null) {
+                try {
+                    conversationService.sendFriendshipNotification(
+                            conversation.getId(),
+                            friend.getUser1().getDisplayName(),
+                            friend.getUser2().getDisplayName());
+                    logger.info("Đã gửi tin nhắn thông báo kết bạn thành công cho conversation: {}",
+                            conversation.getId());
+                } catch (Exception notifyException) {
+                    logger.error("Lỗi khi gửi tin nhắn thông báo kết bạn: {}", notifyException.getMessage(),
+                            notifyException);
+                }
+            }
         } catch (Exception e) {
             // Log lỗi nhưng không làm fail transaction chính
             logger.error("Lỗi khi tạo cuộc trò chuyện cho hai người bạn {} và {}: {}",
@@ -166,6 +181,21 @@ public class FriendService {
                     friend.getUser2().getUserId());
             logger.info("Đã tạo cuộc trò chuyện cho hai người bạn: {} và {}",
                     friend.getUser1().getUserId(), friend.getUser2().getUserId());
+
+            // Gửi tin nhắn thông báo kết bạn thành công
+            if (conversation != null) {
+                try {
+                    conversationService.sendFriendshipNotification(
+                            conversation.getId(),
+                            friend.getUser1().getDisplayName(),
+                            friend.getUser2().getDisplayName());
+                    logger.info("Đã gửi tin nhắn thông báo kết bạn thành công cho conversation: {}",
+                            conversation.getId());
+                } catch (Exception notifyException) {
+                    logger.error("Lỗi khi gửi tin nhắn thông báo kết bạn: {}", notifyException.getMessage(),
+                            notifyException);
+                }
+            }
         } catch (Exception e) {
             // Log lỗi nhưng không làm fail transaction chính
             logger.error("Lỗi khi tạo cuộc trò chuyện cho hai người bạn {} và {}: {}",

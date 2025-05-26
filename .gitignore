@@ -62,9 +62,17 @@ test.html
 .dockerignore
 docker-compose.yml
 
+*.md
+*.sql
+
 
 
 DEVICE_MANAGEMENT_README.md
 
 HEADER_TEST_GUIDE.md
+
+# Bỏ qua thư mục test
+test/
+
+
 

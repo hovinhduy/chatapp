@@ -5,6 +5,7 @@ import com.chatapp.dto.request.MessageDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.dto.response.AttachmentDto;
 import com.chatapp.enums.ConversationType;
+import com.chatapp.enums.MessageType;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Conversation;
 import com.chatapp.model.ConversationUser;
@@ -254,11 +255,19 @@ public class ConversationService {
                 MessageDto dto = new MessageDto();
                 dto.setId(message.getMessageId());
                 dto.setConversationId(message.getConversation().getId());
-                dto.setSenderId(message.getSender().getUserId());
                 dto.setContent(message.getContent());
                 dto.setCreatedAt(message.getCreatedAt());
                 dto.setType(message.getType().name());
-                dto.setSenderName(message.getSender().getDisplayName());
+
+                // Xử lý trường hợp tin nhắn hệ thống không có sender
+                if (message.getSender() != null) {
+                        dto.setSenderId(message.getSender().getUserId());
+                        dto.setSenderName(message.getSender().getDisplayName());
+                } else {
+                        // Đối với tin nhắn hệ thống
+                        dto.setSenderId(null);
+                        dto.setSenderName("Hệ thống");
+                }
 
                 Set<AttachmentDto> attachmentDtos = message.getAttachments().stream()
                                 .map(attachment -> new AttachmentDto(
@@ -414,6 +423,30 @@ public class ConversationService {
 
                 // Cuối cùng xóa cuộc trò chuyện
                 conversationRepository.delete(conversation);
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo kết bạn thành công
+         *
+         * @param conversationId ID của cuộc trò chuyện
+         * @param user1Name      Tên người dùng thứ nhất
+         * @param user2Name      Tên người dùng thứ hai
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendFriendshipNotification(Long conversationId, String user1Name, String user2Name) {
+                Conversation conversation = getConversationById(conversationId);
+
+                // Tạo tin nhắn thông báo hệ thống
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format("🎉 %s và %s đã trở thành bạn bè! Hãy bắt đầu trò chuyện nào!",
+                                user1Name, user2Name));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                // Không set sender cho tin nhắn hệ thống
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                return mapToMessageDto(savedMessage);
         }
 
 }

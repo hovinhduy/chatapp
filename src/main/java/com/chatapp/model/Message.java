@@ -25,7 +25,7 @@ public class Message {
     private Long messageId;
 
     @ManyToOne
-    @JoinColumn(name = "sender_id", nullable = false)
+    @JoinColumn(name = "sender_id", nullable = true)
     @JsonBackReference(value = "sender-messages")
     private User sender;
 
@@ -43,7 +43,7 @@ public class Message {
     private String content;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private MessageType type;
 
     @CreationTimestamp

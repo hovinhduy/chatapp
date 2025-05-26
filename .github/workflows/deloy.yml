@@ -61,14 +61,17 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             echo "Logging into Docker Registry on server..."
-            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ${{ env.DOCKER_REGISTRY }} -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
-            echo "Stopping and removing existing container (if any)..."
-            docker stop $(docker ps -q) && docker rm $(docker ps -aq) && docker rmi -f $(docker images -q)
+            echo "Stopping and removing only chatapp container..."
+            docker stop chatapp || true
+            docker rm chatapp || true
+            docker rmi -f ${{ env.DOCKER_IMAGE_NAME }}:latest || true
 
             echo "Pulling latest Docker image for ${{ env.SERVICE_NAME }}..."
-            docker pull ${{env.DOCKER_IMAGE_NAME}}:latest
+            docker pull ${{ env.DOCKER_IMAGE_NAME }}:latest
 
-            echo "Running new container for ${{ env.SERVICE_NAME }}..."
-            docker compose up -d
+            echo "Recreating service with docker-compose..."
+            docker compose up -d --no-deps --build chatapp
+
             echo "Deployment of ${{ env.SERVICE_NAME }} completed!"
