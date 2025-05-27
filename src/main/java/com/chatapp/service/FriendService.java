@@ -232,8 +232,10 @@ public class FriendService {
             throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
-        friendRepository.delete(friend);
-        return mapToDto(friend);
+        // Thay đổi trạng thái thành REJECTED thay vì xóa
+        friend.setStatus(FriendStatus.REJECTED);
+        Friend updatedFriend = friendRepository.save(friend);
+        return mapToDto(updatedFriend);
     }
 
     /**
@@ -393,8 +395,10 @@ public class FriendService {
             throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
-        friendRepository.delete(friend);
-        return mapToDto(friend);
+        // Thay đổi trạng thái thành REJECTED thay vì xóa
+        friend.setStatus(FriendStatus.REJECTED);
+        Friend updatedFriend = friendRepository.save(friend);
+        return mapToDto(updatedFriend);
     }
 
     /**
@@ -425,8 +429,10 @@ public class FriendService {
             throw new BadRequestException("Chỉ có thể xóa mối quan hệ bạn bè đã được chấp nhận");
         }
 
-        friendRepository.delete(friend);
-        return mapToDto(friend);
+        // Thay đổi trạng thái thành DELETED thay vì xóa
+        friend.setStatus(FriendStatus.DELETED);
+        Friend updatedFriend = friendRepository.save(friend);
+        return mapToDto(updatedFriend);
     }
 
     /**
