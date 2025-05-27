@@ -4,6 +4,7 @@ import com.chatapp.dto.request.ConversationDto;
 import com.chatapp.dto.request.MessageDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.dto.response.AttachmentDto;
+import com.chatapp.dto.response.PageResponse;
 import com.chatapp.enums.ConversationType;
 import com.chatapp.enums.MessageType;
 import com.chatapp.exception.ResourceNotFoundException;
@@ -179,7 +180,8 @@ public class ConversationService {
                                 .collect(Collectors.toList());
         }
 
-        public Page<MessageDto> getPagedMessagesByConversationId(Long conversationId, Long userId, Pageable pageable) {
+        public PageResponse<MessageDto> getPagedMessagesByConversationId(Long conversationId, Long userId,
+                        Pageable pageable) {
                 // Kiểm tra xem người dùng có trong cuộc trò chuyện không
                 boolean isParticipant = conversationUserRepository.existsByConversationIdAndUserId(conversationId,
                                 userId);
@@ -204,13 +206,15 @@ public class ConversationService {
                                 pageable);
 
                 // Map sang DTO và bỏ qua các tin nhắn đã xóa
-                return messagesPage.map(message -> {
+                Page<MessageDto> messageDtosPage = messagesPage.map(message -> {
                         if (finalDeletedMessageIds.contains(message.getMessageId())) {
                                 // Nếu tin nhắn đã bị xóa bởi người dùng này, trả về null
                                 return null;
                         }
                         return mapToMessageDto(message);
                 }).map(dto -> dto); // Chỉ giữ lại các tin nhắn không null
+
+                return PageResponse.of(messageDtosPage);
         }
 
         private ConversationDto mapToDto(Conversation conversation) {
@@ -440,13 +444,101 @@ public class ConversationService {
                 // Tạo tin nhắn thông báo hệ thống
                 Message systemMessage = new Message();
                 systemMessage.setConversation(conversation);
-                systemMessage.setContent(String.format("🎉 %s và %s đã trở thành bạn bè! Hãy bắt đầu trò chuyện nào!",
+                systemMessage.setContent(String.format("🎉 %s và %s đã trở thành bạn bè!",
                                 user1Name, user2Name));
                 systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
                 // Không set sender cho tin nhắn hệ thống
 
                 Message savedMessage = messageRepository.save(systemMessage);
                 return mapToMessageDto(savedMessage);
+        }
+
+        /**
+         * Tìm kiếm tin nhắn trong cuộc trò chuyện
+         *
+         * @param conversationId ID của cuộc trò chuyện
+         * @param userId         ID của người dùng thực hiện tìm kiếm
+         * @param searchTerm     Từ khóa tìm kiếm (có thể null)
+         * @param senderId       ID của người gửi (có thể null)
+         * @param startDate      Ngày bắt đầu (có thể null)
+         * @param endDate        Ngày kết thúc (có thể null)
+         * @param pageable       Thông tin phân trang
+         * @return PageResponse<MessageDto> Danh sách tin nhắn tìm được
+         */
+        public PageResponse<MessageDto> searchMessages(Long conversationId, Long userId, String searchTerm,
+                        Long senderId, LocalDateTime startDate, LocalDateTime endDate,
+                        Pageable pageable) {
+                // Kiểm tra xem người dùng có trong cuộc trò chuyện không
+                boolean isParticipant = conversationUserRepository.existsByConversationIdAndUserId(conversationId,
+                                userId);
+                if (!isParticipant) {
+                        throw new ResourceNotFoundException(
+                                        "Không tìm thấy cuộc trò chuyện hoặc người dùng không phải là thành viên");
+                }
+
+                // Lấy danh sách tin nhắn đã xóa của người dùng
+                User user = userRepository.findById(userId).orElse(null);
+                List<Long> deletedMessageIds = new ArrayList<>();
+                if (user != null) {
+                        deletedMessageIds = deletedMessageRepository.findByUser(user)
+                                        .stream().map(dm -> dm.getMessage().getMessageId()).toList();
+                }
+
+                final List<Long> finalDeletedMessageIds = deletedMessageIds;
+
+                // Thực hiện tìm kiếm
+                Page<Message> messagesPage = messageRepository.searchMessages(conversationId, searchTerm,
+                                senderId, startDate, endDate, pageable);
+
+                // Map sang DTO và bỏ qua các tin nhắn đã xóa
+                Page<MessageDto> messageDtosPage = messagesPage.map(message -> {
+                        if (finalDeletedMessageIds.contains(message.getMessageId())) {
+                                return null;
+                        }
+                        return mapToMessageDto(message);
+                }).map(dto -> dto);
+
+                return PageResponse.of(messageDtosPage);
+        }
+
+        /**
+         * Tìm kiếm tin nhắn trong tất cả cuộc trò chuyện của người dùng
+         *
+         * @param userId     ID của người dùng thực hiện tìm kiếm
+         * @param searchTerm Từ khóa tìm kiếm (có thể null)
+         * @param senderId   ID của người gửi (có thể null)
+         * @param startDate  Ngày bắt đầu (có thể null)
+         * @param endDate    Ngày kết thúc (có thể null)
+         * @param pageable   Thông tin phân trang
+         * @return PageResponse<MessageDto> Danh sách tin nhắn tìm được
+         */
+        public PageResponse<MessageDto> searchMessagesGlobal(Long userId, String searchTerm, Long senderId,
+                        LocalDateTime startDate, LocalDateTime endDate,
+                        Pageable pageable) {
+                // Kiểm tra người dùng có tồn tại
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người dùng với id: " + userId));
+
+                // Lấy danh sách tin nhắn đã xóa của người dùng
+                List<Long> deletedMessageIds = deletedMessageRepository.findByUser(user)
+                                .stream().map(dm -> dm.getMessage().getMessageId()).toList();
+
+                final List<Long> finalDeletedMessageIds = deletedMessageIds;
+
+                // Thực hiện tìm kiếm
+                Page<Message> messagesPage = messageRepository.searchMessagesGlobal(userId, searchTerm,
+                                senderId, startDate, endDate, pageable);
+
+                // Map sang DTO và bỏ qua các tin nhắn đã xóa
+                Page<MessageDto> messageDtosPage = messagesPage.map(message -> {
+                        if (finalDeletedMessageIds.contains(message.getMessageId())) {
+                                return null;
+                        }
+                        return mapToMessageDto(message);
+                }).map(dto -> dto);
+
+                return PageResponse.of(messageDtosPage);
         }
 
 }

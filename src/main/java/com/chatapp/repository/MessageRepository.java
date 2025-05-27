@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -31,4 +32,58 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     void deleteByConversation(Conversation conversation);
 
     void deleteAllByConversation(Conversation conversation);
+
+    // Tìm kiếm tin nhắn theo nội dung trong cuộc trò chuyện
+    @Query("SELECT m FROM Message m WHERE m.conversation.id = :conversationId " +
+            "AND LOWER(m.content) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
+            "ORDER BY m.createdAt DESC")
+    Page<Message> searchMessagesByContent(@Param("conversationId") Long conversationId,
+            @Param("searchTerm") String searchTerm,
+            Pageable pageable);
+
+    // Tìm kiếm tin nhắn theo người gửi trong cuộc trò chuyện
+    @Query("SELECT m FROM Message m WHERE m.conversation.id = :conversationId " +
+            "AND m.sender.userId = :senderId " +
+            "ORDER BY m.createdAt DESC")
+    Page<Message> searchMessagesBySender(@Param("conversationId") Long conversationId,
+            @Param("senderId") Long senderId,
+            Pageable pageable);
+
+    // Tìm kiếm tin nhắn theo khoảng thời gian trong cuộc trò chuyện
+    @Query("SELECT m FROM Message m WHERE m.conversation.id = :conversationId " +
+            "AND m.createdAt BETWEEN :startDate AND :endDate " +
+            "ORDER BY m.createdAt DESC")
+    Page<Message> searchMessagesByDateRange(@Param("conversationId") Long conversationId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable);
+
+    // Tìm kiếm tin nhắn với tất cả các bộ lọc
+    @Query("SELECT m FROM Message m WHERE m.conversation.id = :conversationId " +
+            "AND (:searchTerm IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+            "AND (:senderId IS NULL OR m.sender.userId = :senderId) " +
+            "AND (:startDate IS NULL OR m.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR m.createdAt <= :endDate) " +
+            "ORDER BY m.createdAt DESC")
+    Page<Message> searchMessages(@Param("conversationId") Long conversationId,
+            @Param("searchTerm") String searchTerm,
+            @Param("senderId") Long senderId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable);
+
+    // Tìm kiếm tin nhắn trong tất cả cuộc trò chuyện của người dùng
+    @Query("SELECT m FROM Message m JOIN m.conversation.conversationUsers cu " +
+            "WHERE cu.user.userId = :userId " +
+            "AND (:searchTerm IS NULL OR LOWER(m.content) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+            "AND (:senderId IS NULL OR m.sender.userId = :senderId) " +
+            "AND (:startDate IS NULL OR m.createdAt >= :startDate) " +
+            "AND (:endDate IS NULL OR m.createdAt <= :endDate) " +
+            "ORDER BY m.createdAt DESC")
+    Page<Message> searchMessagesGlobal(@Param("userId") Long userId,
+            @Param("searchTerm") String searchTerm,
+            @Param("senderId") Long senderId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            Pageable pageable);
 }

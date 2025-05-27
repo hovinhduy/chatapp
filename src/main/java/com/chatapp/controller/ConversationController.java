@@ -8,6 +8,7 @@ import com.chatapp.model.User;
 import com.chatapp.service.ConversationService;
 import com.chatapp.service.UserService;
 import com.chatapp.dto.response.ApiResponse;
+import com.chatapp.dto.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.security.Principal;
+import java.time.format.DateTimeParseException;
 
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.model.DeletedMessage;
@@ -167,7 +169,7 @@ public class ConversationController {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
         })
         @GetMapping("/{conversationId}/messages/paged")
-        public ResponseEntity<ApiResponse<Page<MessageDto>>> getPagedMessages(
+        public ResponseEntity<ApiResponse<PageResponse<MessageDto>>> getPagedMessages(
                         @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
                         @Parameter(description = "Số trang (bắt đầu từ 0)", required = false) @RequestParam(defaultValue = "0") int page,
                         @Parameter(description = "Kích thước trang", required = false) @RequestParam(defaultValue = "20") int size,
@@ -178,14 +180,15 @@ public class ConversationController {
                 Pageable pageable = PageRequest.of(page, size);
 
                 // Lấy tin nhắn có phân trang
-                Page<MessageDto> messages = conversationService.getPagedMessagesByConversationId(conversationId, userId,
+                PageResponse<MessageDto> messages = conversationService.getPagedMessagesByConversationId(conversationId,
+                                userId,
                                 pageable);
 
                 // Kiểm tra xem cuộc trò chuyện có bị chặn hay không
                 boolean isBlocked = conversationService.isConversationBlocked(conversationId);
                 boolean isBlockedByMe = conversationService.isBlockedByUser(conversationId, userId);
 
-                return ResponseEntity.ok(ApiResponse.<Page<MessageDto>>builder()
+                return ResponseEntity.ok(ApiResponse.<PageResponse<MessageDto>>builder()
                                 .success(true)
                                 .message("Lấy tin nhắn thành công")
                                 .payload(messages)
@@ -609,6 +612,124 @@ public class ConversationController {
                                 .success(true)
                                 .message("Bỏ chặn tin nhắn thành công")
                                 .build());
+        }
+
+        @Operation(summary = "Tìm kiếm tin nhắn trong cuộc trò chuyện", description = "Tìm kiếm tin nhắn theo nội dung, người gửi và khoảng thời gian trong một cuộc trò chuyện cụ thể")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tìm kiếm tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+        })
+        @GetMapping("/{conversationId}/search")
+        public ResponseEntity<ApiResponse<PageResponse<MessageDto>>> searchMessages(
+                        @Parameter(description = "ID cuộc trò chuyện", required = true) @PathVariable Long conversationId,
+                        @Parameter(description = "Từ khóa tìm kiếm", required = false) @RequestParam(required = false) String searchTerm,
+                        @Parameter(description = "ID người gửi", required = false) @RequestParam(required = false) Long senderId,
+                        @Parameter(description = "Ngày bắt đầu (format: yyyy-MM-ddTHH:mm:ss)", required = false) @RequestParam(required = false) String startDate,
+                        @Parameter(description = "Ngày kết thúc (format: yyyy-MM-ddTHH:mm:ss)", required = false) @RequestParam(required = false) String endDate,
+                        @Parameter(description = "Số trang (bắt đầu từ 0)", required = false) @RequestParam(defaultValue = "0") int page,
+                        @Parameter(description = "Kích thước trang", required = false) @RequestParam(defaultValue = "20") int size,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                try {
+                        Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+
+                        // Chuyển đổi chuỗi ngày thành LocalDateTime
+                        LocalDateTime startDateTime = null;
+                        LocalDateTime endDateTime = null;
+
+                        if (startDate != null && !startDate.trim().isEmpty()) {
+                                startDateTime = LocalDateTime.parse(startDate);
+                        }
+
+                        if (endDate != null && !endDate.trim().isEmpty()) {
+                                endDateTime = LocalDateTime.parse(endDate);
+                        }
+
+                        // Tạo đối tượng Pageable
+                        Pageable pageable = PageRequest.of(page, size);
+
+                        // Thực hiện tìm kiếm
+                        PageResponse<MessageDto> messages = conversationService.searchMessages(conversationId, userId,
+                                        searchTerm, senderId, startDateTime, endDateTime, pageable);
+
+                        return ResponseEntity.ok(ApiResponse.<PageResponse<MessageDto>>builder()
+                                        .success(true)
+                                        .message("Tìm kiếm tin nhắn thành công")
+                                        .payload(messages)
+                                        .build());
+
+                } catch (DateTimeParseException e) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiResponse.<PageResponse<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Định dạng ngày tháng không hợp lệ. Vui lòng sử dụng format: yyyy-MM-ddTHH:mm:ss")
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<PageResponse<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi tìm kiếm: " + e.getMessage())
+                                                        .build());
+                }
+        }
+
+        @Operation(summary = "Tìm kiếm tin nhắn trong tất cả cuộc trò chuyện", description = "Tìm kiếm tin nhắn theo nội dung, người gửi và khoảng thời gian trong tất cả cuộc trò chuyện của người dùng")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tìm kiếm tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
+        })
+        @GetMapping("/search")
+        public ResponseEntity<ApiResponse<PageResponse<MessageDto>>> searchMessagesGlobal(
+                        @Parameter(description = "Từ khóa tìm kiếm", required = false) @RequestParam(required = false) String searchTerm,
+                        @Parameter(description = "ID người gửi", required = false) @RequestParam(required = false) Long senderId,
+                        @Parameter(description = "Ngày bắt đầu (format: yyyy-MM-ddTHH:mm:ss)", required = false) @RequestParam(required = false) String startDate,
+                        @Parameter(description = "Ngày kết thúc (format: yyyy-MM-ddTHH:mm:ss)", required = false) @RequestParam(required = false) String endDate,
+                        @Parameter(description = "Số trang (bắt đầu từ 0)", required = false) @RequestParam(defaultValue = "0") int page,
+                        @Parameter(description = "Kích thước trang", required = false) @RequestParam(defaultValue = "20") int size,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                try {
+                        Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+
+                        // Chuyển đổi chuỗi ngày thành LocalDateTime
+                        LocalDateTime startDateTime = null;
+                        LocalDateTime endDateTime = null;
+
+                        if (startDate != null && !startDate.trim().isEmpty()) {
+                                startDateTime = LocalDateTime.parse(startDate);
+                        }
+
+                        if (endDate != null && !endDate.trim().isEmpty()) {
+                                endDateTime = LocalDateTime.parse(endDate);
+                        }
+
+                        // Tạo đối tượng Pageable
+                        Pageable pageable = PageRequest.of(page, size);
+
+                        // Thực hiện tìm kiếm
+                        PageResponse<MessageDto> messages = conversationService.searchMessagesGlobal(userId,
+                                        searchTerm, senderId, startDateTime, endDateTime, pageable);
+
+                        return ResponseEntity.ok(ApiResponse.<PageResponse<MessageDto>>builder()
+                                        .success(true)
+                                        .message("Tìm kiếm tin nhắn thành công")
+                                        .payload(messages)
+                                        .build());
+
+                } catch (DateTimeParseException e) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiResponse.<PageResponse<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Định dạng ngày tháng không hợp lệ. Vui lòng sử dụng format: yyyy-MM-ddTHH:mm:ss")
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<PageResponse<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi tìm kiếm: " + e.getMessage())
+                                                        .build());
+                }
         }
 
         public static class ConversationRequest {
