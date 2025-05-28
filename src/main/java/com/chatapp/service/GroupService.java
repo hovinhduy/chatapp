@@ -18,12 +18,15 @@ import com.chatapp.repository.FriendRepository;
 import com.chatapp.repository.GroupMemberRepository;
 import com.chatapp.repository.GroupRepository;
 import com.chatapp.repository.UserRepository;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Service xử lý các thao tác liên quan đến nhóm chat và thành viên nhóm
@@ -36,6 +39,7 @@ public class GroupService {
         private final UserRepository userRepository;
         private final FriendRepository friendRepository;
         private final ConversationService conversationService;
+        private final SimpMessagingTemplate messagingTemplate;
 
         /**
          * Constructor để dependency injection
@@ -48,15 +52,17 @@ public class GroupService {
          *                              Friend
          * @param conversationService   Service xử lý các thao tác liên quan đến cuộc
          *                              trò chuyện
+         * @param messagingTemplate     Template để gửi thông báo WebSocket realtime
          */
         public GroupService(GroupRepository groupRepository, GroupMemberRepository groupMemberRepository,
                         UserRepository userRepository, FriendRepository friendRepository,
-                        ConversationService conversationService) {
+                        ConversationService conversationService, SimpMessagingTemplate messagingTemplate) {
                 this.groupRepository = groupRepository;
                 this.groupMemberRepository = groupMemberRepository;
                 this.userRepository = userRepository;
                 this.friendRepository = friendRepository;
                 this.conversationService = conversationService;
+                this.messagingTemplate = messagingTemplate;
         }
 
         /**
@@ -162,6 +168,13 @@ public class GroupService {
                 Conversation conversation = conversationService.getConversationById(conversationDto.getId());
                 savedGroup.setConversation(conversation);
                 groupRepository.save(savedGroup);
+
+                // Gửi thông báo tạo nhóm mới
+                conversationService.sendGroupCreatedNotification(conversationDto.getId(),
+                                creator.getDisplayName(), savedGroup.getName());
+
+                // Gửi thông báo realtime đến tất cả thành viên về việc tạo nhóm mới
+                sendGroupCreatedNotificationToMembers(savedGroup, allMemberIds, creator.getDisplayName());
 
                 GroupDto result = new GroupDto();
                 result.setGroupId(savedGroup.getGroupId());
@@ -273,14 +286,40 @@ public class GroupService {
                         throw new UnauthorizedException("Chỉ trưởng nhóm mới có thể cập nhật thông tin nhóm");
                 }
 
-                if (groupDto.getName() != null) {
+                String oldName = group.getName();
+                boolean nameChanged = false;
+                boolean avatarChanged = false;
+
+                if (groupDto.getName() != null && !groupDto.getName().equals(oldName)) {
                         group.setName(groupDto.getName());
+                        nameChanged = true;
                 }
                 if (groupDto.getAvatarUrl() != null) {
                         group.setAvatarUrl(groupDto.getAvatarUrl());
+                        avatarChanged = true;
                 }
 
                 Group updatedGroup = groupRepository.save(group);
+
+                // Gửi thông báo cập nhật nhóm nếu có thay đổi
+                if (group.getConversation() != null) {
+                        String updaterName = member.getUser().getDisplayName();
+                        if (nameChanged) {
+                                conversationService.sendGroupUpdatedNotification(
+                                                group.getConversation().getId(),
+                                                updaterName,
+                                                "name",
+                                                groupDto.getName());
+                        }
+                        if (avatarChanged) {
+                                conversationService.sendGroupUpdatedNotification(
+                                                group.getConversation().getId(),
+                                                updaterName,
+                                                "avatar",
+                                                null);
+                        }
+                }
+
                 return mapToDto(updatedGroup);
         }
 
@@ -334,7 +373,21 @@ public class GroupService {
                 if (group.getConversation() != null) {
                         // Tạo ConversationUser mới để thêm người dùng vào cuộc trò chuyện
                         conversationService.addUserToConversation(group.getConversation().getId(), userId);
+
+                        // Gửi thông báo thêm thành viên
+                        conversationService.sendGroupMemberAddedNotification(
+                                        group.getConversation().getId(),
+                                        user.getDisplayName(),
+                                        managerMember.getUser().getDisplayName());
                 }
+
+                // Gửi thông báo realtime đến thành viên được thêm vào nhóm
+                sendMemberAddedNotificationToNewMember(userId, group, user.getDisplayName(),
+                                managerMember.getUser().getDisplayName());
+
+                // Gửi thông báo realtime đến các thành viên hiện tại về việc có thành viên mới
+                sendMemberAddedNotificationToExistingMembers(group, user.getDisplayName(),
+                                managerMember.getUser().getDisplayName());
         }
 
         /**
@@ -386,12 +439,29 @@ public class GroupService {
                         throw new UnauthorizedException("Phó nhóm không thể xóa phó nhóm khác");
                 }
 
+                // Lưu tên thành viên trước khi xóa
+                String memberName = memberToRemove.getUser().getDisplayName();
+
                 groupMemberRepository.delete(memberToRemove);
 
                 // Xóa người dùng khỏi cuộc trò chuyện của nhóm (nếu có)
                 if (group.getConversation() != null) {
                         conversationService.removeUserFromConversation(group.getConversation().getId(), userId);
+
+                        // Gửi thông báo xóa thành viên
+                        conversationService.sendGroupMemberRemovedNotification(
+                                        group.getConversation().getId(),
+                                        memberName,
+                                        managerMember.getUser().getDisplayName());
                 }
+
+                // Gửi thông báo realtime đến thành viên bị xóa
+                sendMemberRemovedNotificationToUser(userId, group, memberName,
+                                managerMember.getUser().getDisplayName());
+
+                // Gửi thông báo realtime đến các thành viên còn lại trong nhóm
+                sendMemberRemovedNotificationToRemainingMembers(group, memberName,
+                                managerMember.getUser().getDisplayName());
         }
 
         /**
@@ -434,6 +504,14 @@ public class GroupService {
 
                 memberToPromote.setRole(GroupRole.DEPUTY);
                 groupMemberRepository.save(memberToPromote);
+
+                // Gửi thông báo thăng cấp thành viên
+                if (group.getConversation() != null) {
+                        conversationService.sendGroupMemberPromotedNotification(
+                                        group.getConversation().getId(),
+                                        memberToPromote.getUser().getDisplayName(),
+                                        leaderMember.getUser().getDisplayName());
+                }
         }
 
         @Transactional
@@ -468,6 +546,14 @@ public class GroupService {
 
                 memberToDemote.setRole(GroupRole.MEMBER);
                 groupMemberRepository.save(memberToDemote);
+
+                // Gửi thông báo hạ cấp thành viên
+                if (group.getConversation() != null) {
+                        conversationService.sendGroupMemberDemotedNotification(
+                                        group.getConversation().getId(),
+                                        memberToDemote.getUser().getDisplayName(),
+                                        leaderMember.getUser().getDisplayName());
+                }
         }
 
         @Transactional
@@ -498,12 +584,24 @@ public class GroupService {
                                 .orElseThrow(() -> new BadRequestException(
                                                 "Trưởng nhóm mới không phải là thành viên của nhóm này"));
 
+                // Lưu tên trước khi thay đổi vai trò
+                String oldLeaderName = currentLeader.getUser().getDisplayName();
+                String newLeaderName = newLeader.getUser().getDisplayName();
+
                 // Chuyển quyền trưởng nhóm
                 currentLeader.setRole(GroupRole.MEMBER);
                 newLeader.setRole(GroupRole.LEADER);
 
                 groupMemberRepository.save(currentLeader);
                 groupMemberRepository.save(newLeader);
+
+                // Gửi thông báo chuyển quyền trưởng nhóm
+                if (group.getConversation() != null) {
+                        conversationService.sendGroupLeadershipTransferredNotification(
+                                        group.getConversation().getId(),
+                                        newLeaderName,
+                                        oldLeaderName);
+                }
         }
 
         /**
@@ -539,8 +637,16 @@ public class GroupService {
                         conversationId = conversation.getId();
                 }
 
-                // Xóa tất cả các thành viên của nhóm
+                // Lấy danh sách thành viên trước khi xóa để gửi thông báo
                 List<GroupMember> groupMembers = groupMemberRepository.findByGroup(group);
+                List<Long> memberIds = groupMembers.stream()
+                                .map(gm -> gm.getUser().getUserId())
+                                .collect(Collectors.toList());
+
+                // Gửi thông báo realtime đến tất cả thành viên về việc giải tán nhóm
+                sendGroupDissolvedNotificationToMembers(group, memberIds, member.getUser().getDisplayName());
+
+                // Xóa tất cả các thành viên của nhóm
                 groupMemberRepository.deleteAll(groupMembers);
 
                 // Xóa nhóm
@@ -581,13 +687,27 @@ public class GroupService {
                                         "Trưởng nhóm không thể rời khỏi nhóm. Vui lòng chuyển quyền trưởng nhóm trước khi rời khỏi");
                 }
 
+                // Lưu tên thành viên trước khi xóa
+                String memberName = member.getUser().getDisplayName();
+
                 // Xóa thành viên khỏi nhóm
                 groupMemberRepository.delete(member);
 
                 // Xóa người dùng khỏi cuộc trò chuyện của nhóm (nếu có)
                 if (group.getConversation() != null) {
                         conversationService.removeUserFromConversation(group.getConversation().getId(), userId);
+
+                        // Gửi thông báo thành viên rời khỏi nhóm
+                        conversationService.sendGroupMemberLeftNotification(
+                                        group.getConversation().getId(),
+                                        memberName);
                 }
+
+                // Gửi thông báo realtime đến thành viên rời khỏi nhóm
+                sendMemberLeftNotificationToUser(userId, group, memberName);
+
+                // Gửi thông báo realtime đến các thành viên còn lại trong nhóm
+                sendMemberLeftNotificationToRemainingMembers(group, memberName);
         }
 
         /**
@@ -637,5 +757,194 @@ public class GroupService {
                 dto.setUser(userDto);
                 dto.setRole(member.getRole());
                 return dto;
+        }
+
+        /**
+         * Gửi thông báo realtime đến tất cả thành viên về việc tạo nhóm mới
+         * 
+         * @param group       Nhóm vừa được tạo
+         * @param memberIds   Danh sách ID các thành viên trong nhóm
+         * @param creatorName Tên người tạo nhóm
+         */
+        private void sendGroupCreatedNotificationToMembers(Group group, List<Long> memberIds, String creatorName) {
+                // Tạo thông báo cho từng thành viên
+                for (Long memberId : memberIds) {
+                        // Gửi thông báo đến queue cá nhân của từng thành viên về việc được thêm vào
+                        // nhóm mới
+                        GroupDto groupNotification = mapToDto(group);
+                        messagingTemplate.convertAndSend("/queue/user/" + memberId + "/group-created",
+                                        Map.of(
+                                                        "type", "GROUP_CREATED",
+                                                        "message", String.format("Bạn đã được %s thêm vào nhóm \"%s\"",
+                                                                        creatorName, group.getName()),
+                                                        "group", groupNotification,
+                                                        "creatorName", creatorName,
+                                                        "timestamp", LocalDateTime.now()));
+                }
+        }
+
+        /**
+         * Gửi thông báo đến thành viên bị xóa khỏi nhóm
+         * 
+         * @param userId      ID của thành viên bị xóa
+         * @param group       Nhóm mà thành viên bị xóa khỏi
+         * @param memberName  Tên của thành viên bị xóa
+         * @param managerName Tên của người quản lý thực hiện xóa
+         */
+        private void sendMemberRemovedNotificationToUser(Long userId, Group group, String memberName,
+                        String managerName) {
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/group-member-removed",
+                                Map.of(
+                                                "type", "GROUP_MEMBER_REMOVED",
+                                                "message", String.format("Bạn đã bị %s xóa khỏi nhóm \"%s\"",
+                                                                managerName, group.getName()),
+                                                "groupName", group.getName(),
+                                                "groupId", group.getGroupId(),
+                                                "managerName", managerName,
+                                                "timestamp", LocalDateTime.now()));
+        }
+
+        /**
+         * Gửi thông báo đến các thành viên còn lại về việc có thành viên bị xóa khỏi
+         * nhóm
+         * 
+         * @param group       Nhóm có thành viên bị xóa
+         * @param memberName  Tên của thành viên bị xóa
+         * @param managerName Tên của người quản lý thực hiện xóa
+         */
+        private void sendMemberRemovedNotificationToRemainingMembers(Group group, String memberName,
+                        String managerName) {
+                List<GroupMember> remainingMembers = groupMemberRepository.findByGroup(group);
+                for (GroupMember member : remainingMembers) {
+                        // Gửi thông báo đến tất cả thành viên còn lại
+                        messagingTemplate.convertAndSend(
+                                        "/queue/user/" + member.getUser().getUserId() + "/group-member-removed",
+                                        Map.of(
+                                                        "type", "GROUP_MEMBER_REMOVED",
+                                                        "message",
+                                                        String.format("Thành viên %s đã bị %s xóa khỏi nhóm \"%s\"",
+                                                                        memberName, managerName, group.getName()),
+                                                        "groupName", group.getName(),
+                                                        "groupId", group.getGroupId(),
+                                                        "memberName", memberName,
+                                                        "managerName", managerName,
+                                                        "timestamp", LocalDateTime.now()));
+                }
+        }
+
+        /**
+         * Gửi thông báo realtime đến thành viên được thêm vào nhóm
+         * 
+         * @param userId      ID của thành viên được thêm vào nhóm
+         * @param group       Nhóm được thêm thành viên
+         * @param memberName  Tên của thành viên được thêm vào nhóm
+         * @param managerName Tên của người quản lý thêm thành viên
+         */
+        private void sendMemberAddedNotificationToNewMember(Long userId, Group group, String memberName,
+                        String managerName) {
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/group-member-added",
+                                Map.of(
+                                                "type", "GROUP_MEMBER_ADDED",
+                                                "message", String.format("Bạn đã được %s thêm vào nhóm \"%s\"",
+                                                                managerName, group.getName()),
+                                                "groupName", group.getName(),
+                                                "groupId", group.getGroupId(),
+                                                "memberName", memberName,
+                                                "managerName", managerName,
+                                                "timestamp", LocalDateTime.now()));
+        }
+
+        /**
+         * Gửi thông báo realtime đến các thành viên hiện tại về việc có thành viên mới
+         * 
+         * @param group       Nhóm được thêm thành viên
+         * @param memberName  Tên của thành viên được thêm vào nhóm
+         * @param managerName Tên của người quản lý thêm thành viên
+         */
+        private void sendMemberAddedNotificationToExistingMembers(Group group, String memberName,
+                        String managerName) {
+                List<GroupMember> existingMembers = groupMemberRepository.findByGroup(group);
+                for (GroupMember member : existingMembers) {
+                        // Gửi thông báo đến tất cả thành viên còn lại
+                        messagingTemplate.convertAndSend(
+                                        "/queue/user/" + member.getUser().getUserId() + "/group-member-added",
+                                        Map.of(
+                                                        "type", "GROUP_MEMBER_ADDED",
+                                                        "message",
+                                                        String.format("Thành viên %s đã được %s thêm vào nhóm \"%s\"",
+                                                                        memberName, managerName, group.getName()),
+                                                        "groupName", group.getName(),
+                                                        "groupId", group.getGroupId(),
+                                                        "memberName", memberName,
+                                                        "managerName", managerName,
+                                                        "timestamp", LocalDateTime.now()));
+                }
+        }
+
+        /**
+         * Gửi thông báo realtime đến tất cả thành viên về việc giải tán nhóm
+         * 
+         * @param group      Nhóm vừa được giải tán
+         * @param memberIds  Danh sách ID các thành viên trong nhóm
+         * @param leaderName Tên của trưởng nhóm thực hiện giải tán
+         */
+        private void sendGroupDissolvedNotificationToMembers(Group group, List<Long> memberIds, String leaderName) {
+                // Tạo thông báo cho từng thành viên
+                for (Long memberId : memberIds) {
+                        // Gửi thông báo đến queue cá nhân của từng thành viên về việc nhóm đã được giải
+                        // tán
+                        GroupDto groupNotification = mapToDto(group);
+                        messagingTemplate.convertAndSend("/queue/user/" + memberId + "/group-dissolved",
+                                        Map.of(
+                                                        "type", "GROUP_DISSOLVED",
+                                                        "message", String.format("Nhóm \"%s\" đã được %s giải tán",
+                                                                        group.getName(), leaderName),
+                                                        "group", groupNotification,
+                                                        "leaderName", leaderName,
+                                                        "timestamp", LocalDateTime.now()));
+                }
+        }
+
+        /**
+         * Gửi thông báo realtime đến thành viên rời khỏi nhóm
+         * 
+         * @param userId     ID của thành viên rời khỏi nhóm
+         * @param group      Nhóm mà thành viên rời khỏi
+         * @param memberName Tên của thành viên rời khỏi nhóm
+         */
+        private void sendMemberLeftNotificationToUser(Long userId, Group group, String memberName) {
+                messagingTemplate.convertAndSend("/queue/user/" + userId + "/group-member-left",
+                                Map.of(
+                                                "type", "GROUP_MEMBER_LEFT",
+                                                "message", String.format("Bạn đã rời khỏi nhóm \"%s\"",
+                                                                group.getName()),
+                                                "groupName", group.getName(),
+                                                "groupId", group.getGroupId(),
+                                                "memberName", memberName,
+                                                "timestamp", LocalDateTime.now()));
+        }
+
+        /**
+         * Gửi thông báo realtime đến các thành viên còn lại trong nhóm
+         * 
+         * @param group      Nhóm mà thành viên rời khỏi
+         * @param memberName Tên của thành viên rời khỏi nhóm
+         */
+        private void sendMemberLeftNotificationToRemainingMembers(Group group, String memberName) {
+                List<GroupMember> remainingMembers = groupMemberRepository.findByGroup(group);
+                for (GroupMember member : remainingMembers) {
+                        // Gửi thông báo đến tất cả thành viên còn lại
+                        messagingTemplate.convertAndSend(
+                                        "/queue/user/" + member.getUser().getUserId() + "/group-member-left",
+                                        Map.of(
+                                                        "type", "GROUP_MEMBER_LEFT",
+                                                        "message",
+                                                        String.format("Thành viên %s đã rời khỏi nhóm \"%s\"",
+                                                                        memberName, group.getName()),
+                                                        "groupName", group.getName(),
+                                                        "groupId", group.getGroupId(),
+                                                        "memberName", memberName,
+                                                        "timestamp", LocalDateTime.now()));
+                }
         }
 }

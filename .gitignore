@@ -74,5 +74,7 @@ HEADER_TEST_GUIDE.md
 # Bỏ qua thư mục test
 test/
 
+group-notifications-test.html
+
 
 

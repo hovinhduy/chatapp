@@ -430,10 +430,8 @@ public class FriendService {
             throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
         }
 
-        // Thay đổi trạng thái thành REJECTED thay vì xóa
-        friend.setStatus(FriendStatus.REJECTED);
-        Friend updatedFriend = friendRepository.save(friend);
-        return mapToDto(updatedFriend);
+        friendRepository.delete(friend);
+        return mapToDto(friend);
     }
 
     /**

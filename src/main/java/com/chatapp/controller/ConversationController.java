@@ -319,7 +319,7 @@ public class ConversationController {
                                                         .build());
                 }
 
-                message.setContent("tin nhắn đã thu hồi");
+                message.setContent("Tin nhắn đã thu hồi");
                 Message savedMessage = messageRepository.save(message);
                 MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
 

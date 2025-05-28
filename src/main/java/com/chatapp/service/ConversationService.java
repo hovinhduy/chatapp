@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -62,6 +63,9 @@ public class ConversationService {
 
         @Autowired
         private GroupRepository groupRepository;
+
+        @Autowired
+        private SimpMessagingTemplate messagingTemplate;
 
         public List<ConversationDto> getConversationsByUserId(Long userId) {
                 User user = userRepository.findById(userId)
@@ -539,6 +543,242 @@ public class ConversationService {
                 }).map(dto -> dto);
 
                 return PageResponse.of(messageDtosPage);
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo thêm thành viên mới vào nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param memberName     Tên của thành viên mới được thêm
+         * @param adderName      Tên của người thêm thành viên
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupMemberAddedNotification(Long conversationId, String memberName, String adderName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                // Tạo tin nhắn thông báo hệ thống
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" %s đã được %s thêm vào nhóm",
+                                memberName, adderName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+                // Không set sender cho tin nhắn hệ thống
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                // Gửi thông báo realtime qua WebSocket
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo xóa thành viên khỏi nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param memberName     Tên của thành viên bị xóa
+         * @param removerName    Tên của người xóa thành viên
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupMemberRemovedNotification(Long conversationId, String memberName,
+                        String removerName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" %s đã bị %s xóa khỏi nhóm",
+                                memberName, removerName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo thành viên rời khỏi nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param memberName     Tên của thành viên rời khỏi nhóm
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupMemberLeftNotification(Long conversationId, String memberName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" %s đã rời khỏi nhóm", memberName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo thăng cấp thành viên lên phó nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param memberName     Tên của thành viên được thăng cấp
+         * @param promoterName   Tên của người thăng cấp
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupMemberPromotedNotification(Long conversationId, String memberName,
+                        String promoterName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" %s đã được %s thăng cấp thành phó nhóm",
+                                memberName, promoterName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo hạ cấp thành viên xuống thành viên thường
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param memberName     Tên của thành viên bị hạ cấp
+         * @param demoterName    Tên của người hạ cấp
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupMemberDemotedNotification(Long conversationId, String memberName,
+                        String demoterName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" %s đã được %s hạ cấp xuống thành viên thường",
+                                memberName, demoterName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo chuyển quyền trưởng nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param newLeaderName  Tên của trưởng nhóm mới
+         * @param oldLeaderName  Tên của trưởng nhóm cũ
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupLeadershipTransferredNotification(Long conversationId, String newLeaderName,
+                        String oldLeaderName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" Quyền trưởng nhóm đã được chuyển từ %s sang %s",
+                                oldLeaderName, newLeaderName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo cập nhật thông tin nhóm
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param updaterName    Tên của người cập nhật
+         * @param updateType     Loại cập nhật (tên nhóm, ảnh đại diện, v.v.)
+         * @param newValue       Giá trị mới (nếu cần)
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupUpdatedNotification(Long conversationId, String updaterName, String updateType,
+                        String newValue) {
+                Conversation conversation = getConversationById(conversationId);
+
+                String content;
+                switch (updateType) {
+                        case "name":
+                                content = String.format(" %s đã thay đổi tên nhóm thành \"%s\"", updaterName,
+                                                newValue);
+                                break;
+                        case "avatar":
+                                content = String.format(" %s đã thay đổi ảnh đại diện nhóm", updaterName);
+                                break;
+                        default:
+                                content = String.format(" %s đã cập nhật thông tin nhóm", updaterName);
+                                break;
+                }
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(content);
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
+        }
+
+        /**
+         * Gửi tin nhắn hệ thống thông báo tạo nhóm mới
+         *
+         * @param conversationId ID của cuộc trò chuyện nhóm
+         * @param creatorName    Tên của người tạo nhóm
+         * @param groupName      Tên nhóm
+         * @return MessageDto Thông tin tin nhắn đã được tạo
+         */
+        @Transactional
+        public MessageDto sendGroupCreatedNotification(Long conversationId, String creatorName, String groupName) {
+                Conversation conversation = getConversationById(conversationId);
+
+                Message systemMessage = new Message();
+                systemMessage.setConversation(conversation);
+                systemMessage.setContent(String.format(" Nhóm \"%s\" đã được tạo bởi %s",
+                                groupName, creatorName));
+                systemMessage.setType(MessageType.SYSTEM_NOTIFICATION);
+                systemMessage.setCreatedAt(LocalDateTime.now());
+
+                Message savedMessage = messageRepository.save(systemMessage);
+                MessageDto messageDto = mapToMessageDto(savedMessage);
+
+                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                return messageDto;
         }
 
 }
