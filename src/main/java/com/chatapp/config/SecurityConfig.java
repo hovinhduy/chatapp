@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/otp/**").permitAll()
+                        .requestMatchers("/api/qr-login/generate").permitAll()
+                        .requestMatchers("/api/qr-login/status/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/chat-test", "/css/**", "/js/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
