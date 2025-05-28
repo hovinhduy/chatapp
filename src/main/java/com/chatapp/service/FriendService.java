@@ -70,14 +70,45 @@ public class FriendService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người nhận với id: " + receiverId));
 
         // Kiểm tra xem mối quan hệ bạn bè đã tồn tại chưa
-        if (friendRepository.findByUsers(sender, receiver).isPresent()) {
-            throw new BadRequestException("Mối quan hệ bạn bè đã tồn tại");
-        }
+        Friend friend = null;
+        var existingFriendship = friendRepository.findByUsers(sender, receiver);
 
-        Friend friend = new Friend();
-        friend.setUser1(sender);
-        friend.setUser2(receiver);
-        friend.setStatus(FriendStatus.PENDING);
+        if (existingFriendship.isPresent()) {
+            friend = existingFriendship.get();
+
+            // Nếu trạng thái là REJECTED hoặc DELETED, cho phép gửi lời mời lại
+            if (friend.getStatus() == FriendStatus.REJECTED || friend.getStatus() == FriendStatus.DELETED) {
+                // Đặt người gửi lời mời là user1
+                friend.setUser1(sender);
+                friend.setUser2(receiver);
+                friend.setStatus(FriendStatus.PENDING);
+                logger.info("Gửi lại lời mời kết bạn cho mối quan hệ đã {} trước đó", friend.getStatus());
+            }
+            // Nếu là trạng thái khác (PENDING, ACCEPTED, BLOCKED), báo lỗi
+            else {
+                String statusMessage = "";
+                switch (friend.getStatus()) {
+                    case PENDING:
+                        statusMessage = "đang chờ xử lý";
+                        break;
+                    case ACCEPTED:
+                        statusMessage = "đã là bạn bè";
+                        break;
+                    case BLOCKED:
+                        statusMessage = "đã bị chặn";
+                        break;
+                    default:
+                        statusMessage = "không hợp lệ";
+                }
+                throw new BadRequestException("Không thể gửi lời mời kết bạn vì mối quan hệ " + statusMessage);
+            }
+        } else {
+            // Tạo mới mối quan hệ bạn bè nếu chưa tồn tại
+            friend = new Friend();
+            friend.setUser1(sender);
+            friend.setUser2(receiver);
+            friend.setStatus(FriendStatus.PENDING);
+        }
 
         Friend savedFriend = friendRepository.save(friend);
         return mapToDto(savedFriend);
@@ -230,6 +261,10 @@ public class FriendService {
         // Kiểm tra trạng thái có phải là CHỜ không
         if (friend.getStatus() != FriendStatus.PENDING) {
             throw new BadRequestException("Lời mời kết bạn không ở trạng thái chờ xử lý");
+        }
+        // Kiểm tra xem có đang là bạn bè không
+        if (friend.getStatus() == FriendStatus.ACCEPTED) {
+            throw new BadRequestException("Không thể từ chối lời mời kết bạn vì đã là bạn bè");
         }
 
         // Thay đổi trạng thái thành REJECTED thay vì xóa
