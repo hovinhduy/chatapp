@@ -5,6 +5,7 @@ import com.chatapp.dto.request.MessageDto;
 import com.chatapp.dto.request.UserDto;
 import com.chatapp.dto.response.AttachmentDto;
 import com.chatapp.dto.response.PageResponse;
+import com.chatapp.dto.response.BlockedUserResponse;
 import com.chatapp.enums.ConversationType;
 import com.chatapp.enums.MessageType;
 import com.chatapp.exception.ResourceNotFoundException;
@@ -812,6 +813,55 @@ public class ConversationService {
                 messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
 
                 return messageDto;
+        }
+
+        /**
+         * Lấy danh sách tất cả user đang bị chặn của người dùng trong tất cả cuộc trò
+         * chuyện
+         *
+         * @param userId ID của người dùng muốn lấy danh sách user bị chặn
+         * @return List<BlockedUserResponse> Danh sách các user bị chặn kèm thông tin
+         *         cuộc trò chuyện
+         */
+        public List<BlockedUserResponse> getBlockedUsers(Long userId) {
+                // Kiểm tra người dùng có tồn tại
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người dùng với id: " + userId));
+
+                // Lấy tất cả conversation block của user này
+                List<ConversationBlock> conversationBlocks = conversationBlockRepository.findByUser_UserId(userId);
+
+                // Map sang BlockedUserResponse
+                return conversationBlocks.stream()
+                                .map(block -> {
+                                        Conversation conversation = block.getConversation();
+
+                                        // Chỉ xử lý cuộc trò chuyện 1-1
+                                        if (conversation.getType() == ConversationType.ONE_TO_ONE) {
+                                                // Tìm user khác trong cuộc trò chuyện (người bị chặn)
+                                                List<ConversationUser> conversationUsers = conversationUserRepository
+                                                                .findByConversationId(conversation.getId());
+
+                                                User blockedUser = conversationUsers.stream()
+                                                                .map(ConversationUser::getUser)
+                                                                .filter(u -> !u.getUserId().equals(userId))
+                                                                .findFirst()
+                                                                .orElse(null);
+
+                                                if (blockedUser != null) {
+                                                        UserDto blockedUserDto = mapUserToDto(blockedUser);
+                                                        return BlockedUserResponse.builder()
+                                                                        .conversationId(conversation.getId())
+                                                                        .blockedUser(blockedUserDto)
+                                                                        .blockedAt(block.getCreatedAt())
+                                                                        .build();
+                                                }
+                                        }
+                                        return null;
+                                })
+                                .filter(response -> response != null)
+                                .collect(Collectors.toList());
         }
 
 }

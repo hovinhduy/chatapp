@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import com.chatapp.dto.response.BlockedUserResponse;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -749,6 +750,24 @@ public class ConversationController {
                                                         .message("Lỗi khi tìm kiếm: " + e.getMessage())
                                                         .build());
                 }
+        }
+
+        @Operation(summary = "Lấy danh sách user đang bị chặn", description = "Lấy danh sách tất cả user đang bị chặn trong tất cả cuộc trò chuyện của người dùng hiện tại")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách user bị chặn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
+        })
+        @GetMapping("/blocked-users")
+        public ResponseEntity<ApiResponse<List<BlockedUserResponse>>> getBlockedUsers(
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                List<BlockedUserResponse> blockedUsers = conversationService.getBlockedUsers(userId);
+
+                return ResponseEntity.ok(ApiResponse.<List<BlockedUserResponse>>builder()
+                                .success(true)
+                                .message("Lấy danh sách user bị chặn thành công")
+                                .payload(blockedUsers)
+                                .build());
         }
 
         public static class ConversationRequest {

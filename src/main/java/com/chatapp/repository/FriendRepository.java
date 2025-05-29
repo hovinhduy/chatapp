@@ -28,4 +28,7 @@ public interface FriendRepository extends JpaRepository<Friend, Long> {
             "((f.user1 = :user AND LOWER(f.user2.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) OR " +
             "(f.user2 = :user AND LOWER(f.user1.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))))")
     List<Friend> searchFriendsByName(@Param("user") User user, @Param("searchTerm") String searchTerm);
+
+    @Query("SELECT f FROM Friend f WHERE f.user1 = :user AND f.status = 'BLOCKED'")
+    List<Friend> findBlockedFriends(@Param("user") User user);
 }

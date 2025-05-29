@@ -212,6 +212,23 @@ public class FriendController {
                 return ResponseEntity.ok(response);
         }
 
+        @Operation(summary = "Lấy danh sách bạn bè bị chặn", description = "Lấy danh sách bạn bè đã bị chặn")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách bạn bè bị chặn thành công")
+        })
+        @GetMapping("/blocked")
+        public ResponseEntity<ApiResponse<List<FriendDto>>> getBlockedFriends(
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                List<FriendDto> result = friendService.getBlockedFriends(userId);
+                ApiResponse<List<FriendDto>> response = ApiResponse.<List<FriendDto>>builder()
+                                .success(true)
+                                .message("Lấy danh sách bạn bè bị chặn thành công")
+                                .payload(result)
+                                .build();
+                return ResponseEntity.ok(response);
+        }
+
         @Operation(summary = "Thu hồi lời mời kết bạn", description = "Thu hồi lời mời kết bạn đã gửi")
         @ApiResponses(value = {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Thu hồi lời mời kết bạn thành công"),

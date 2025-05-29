@@ -5,6 +5,8 @@ import com.chatapp.model.ConversationBlock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface ConversationBlockRepository extends JpaRepository<ConversationBlock, Long> {
 
@@ -17,4 +19,6 @@ public interface ConversationBlockRepository extends JpaRepository<ConversationB
     void deleteByConversation(Conversation conversation);
 
     void deleteAllByConversation(Conversation conversation);
+
+    List<ConversationBlock> findByUser_UserId(Long userId);
 }

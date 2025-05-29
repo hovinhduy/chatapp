@@ -9,8 +9,10 @@ import com.chatapp.exception.BadRequestException;
 import com.chatapp.exception.ResourceNotFoundException;
 import com.chatapp.model.Friend;
 import com.chatapp.model.User;
+import com.chatapp.model.Conversation;
 import com.chatapp.repository.FriendRepository;
 import com.chatapp.repository.UserRepository;
+import com.chatapp.repository.ConversationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
  * Service xử lý các thao tác liên quan đến kết bạn và quản lý bạn bè
@@ -30,20 +33,26 @@ public class FriendService {
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
     private final ConversationService conversationService;
+    private final ConversationRepository conversationRepository;
 
     /**
      * Constructor để dependency injection
      * 
-     * @param friendRepository    Repository xử lý thao tác với database của Friend
-     * @param userRepository      Repository xử lý thao tác với database của User
-     * @param conversationService Service xử lý các thao tác liên quan đến cuộc trò
-     *                            chuyện
+     * @param friendRepository       Repository xử lý thao tác với database của
+     *                               Friend
+     * @param userRepository         Repository xử lý thao tác với database của User
+     * @param conversationService    Service xử lý các thao tác liên quan đến cuộc
+     *                               trò
+     *                               chuyện
+     * @param conversationRepository Repository xử lý thao tác với database của
+     *                               Conversation
      */
     public FriendService(FriendRepository friendRepository, UserRepository userRepository,
-            ConversationService conversationService) {
+            ConversationService conversationService, ConversationRepository conversationRepository) {
         this.friendRepository = friendRepository;
         this.userRepository = userRepository;
         this.conversationService = conversationService;
+        this.conversationRepository = conversationRepository;
     }
 
     /**
@@ -143,7 +152,7 @@ public class FriendService {
         friend.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friend);
 
-        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người bạn
+        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người
         try {
             ConversationDto conversation = conversationService.getOrCreateOneToOneConversation(
                     friend.getUser1().getUserId(),
@@ -204,7 +213,7 @@ public class FriendService {
         friend.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friend);
 
-        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người bạn
+        // Tự động tạo cuộc trò chuyện 1-1 giữa hai người
         ConversationDto conversation = null;
         try {
             conversation = conversationService.getOrCreateOneToOneConversation(
@@ -274,7 +283,7 @@ public class FriendService {
     }
 
     /**
-     * Chặn một người bạn
+     * Chặn một người bạn và tự động chặn cuộc trò chuyện 1-1
      * 
      * @param userId   ID của người dùng thực hiện chặn
      * @param friendId ID của người bạn bị chặn
@@ -303,11 +312,27 @@ public class FriendService {
 
         friendship.setStatus(FriendStatus.BLOCKED);
         Friend updatedFriend = friendRepository.save(friendship);
+
+        // Tự động chặn cuộc trò chuyện 1-1 giữa hai người
+        try {
+            Optional<Conversation> conversation = conversationRepository.findOneToOneConversation(userId, friendId);
+            if (conversation.isPresent()) {
+                conversationService.blockConversation(conversation.get().getId(), userId);
+                logger.info("Đã chặn cuộc trò chuyện {} khi chặn bạn bè giữa user {} và {}",
+                        conversation.get().getId(), userId, friendId);
+            } else {
+                logger.info("Không tìm thấy cuộc trò chuyện 1-1 giữa user {} và {} để chặn", userId, friendId);
+            }
+        } catch (Exception e) {
+            logger.warn("Không thể chặn cuộc trò chuyện khi chặn bạn bè: {}", e.getMessage());
+            // Không fail transaction chính, chỉ log warning
+        }
+
         return mapToDto(updatedFriend);
     }
 
     /**
-     * Bỏ chặn một người bạn
+     * Bỏ chặn một người bạn và tự động bỏ chặn cuộc trò chuyện 1-1
      * 
      * @param userId   ID của người dùng thực hiện bỏ chặn
      * @param friendId ID của người bạn bị chặn
@@ -336,6 +361,22 @@ public class FriendService {
 
         friendship.setStatus(FriendStatus.ACCEPTED);
         Friend updatedFriend = friendRepository.save(friendship);
+
+        // Tự động bỏ chặn cuộc trò chuyện 1-1 giữa hai người
+        try {
+            Optional<Conversation> conversation = conversationRepository.findOneToOneConversation(userId, friendId);
+            if (conversation.isPresent()) {
+                conversationService.unblockConversation(conversation.get().getId(), userId);
+                logger.info("Đã bỏ chặn cuộc trò chuyện {} khi bỏ chặn bạn bè giữa user {} và {}",
+                        conversation.get().getId(), userId, friendId);
+            } else {
+                logger.info("Không tìm thấy cuộc trò chuyện 1-1 giữa user {} và {} để bỏ chặn", userId, friendId);
+            }
+        } catch (Exception e) {
+            logger.warn("Không thể bỏ chặn cuộc trò chuyện khi bỏ chặn bạn bè: {}", e.getMessage());
+            // Không fail transaction chính, chỉ log warning
+        }
+
         return mapToDto(updatedFriend);
     }
 
@@ -466,6 +507,22 @@ public class FriendService {
         friend.setStatus(FriendStatus.DELETED);
         Friend updatedFriend = friendRepository.save(friend);
         return mapToDto(updatedFriend);
+    }
+
+    /**
+     * Lấy danh sách bạn bè bị chặn
+     * 
+     * @param userId ID của người dùng
+     * @return List<FriendDto> Danh sách bạn bè bị chặn
+     * @throws ResourceNotFoundException Nếu không tìm thấy người dùng
+     */
+    public List<FriendDto> getBlockedFriends(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với id: " + userId));
+
+        return friendRepository.findBlockedFriends(user).stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
     }
 
     /**
