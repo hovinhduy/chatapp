@@ -41,6 +41,8 @@ import java.util.ArrayList;
 @Service
 public class ConversationService {
 
+        private static final int MAX_MESSAGE_LENGTH = 2048;
+
         @Autowired
         private ConversationRepository conversationRepository;
 
@@ -1018,6 +1020,94 @@ public class ConversationService {
                 }
 
                 return deletedCount;
+        }
+
+        /**
+         * Chia tin nhắn dài thành nhiều phần nhỏ hơn
+         *
+         * @param content Nội dung tin nhắn gốc
+         * @return List<String> Danh sách các phần tin nhắn
+         */
+        private List<String> splitLongMessage(String content) {
+                List<String> messageParts = new ArrayList<>();
+
+                if (content == null || content.length() <= MAX_MESSAGE_LENGTH) {
+                        messageParts.add(content);
+                        return messageParts;
+                }
+
+                int startIndex = 0;
+
+                while (startIndex < content.length()) {
+                        int endIndex = Math.min(startIndex + MAX_MESSAGE_LENGTH, content.length());
+                        String messagePart = content.substring(startIndex, endIndex);
+
+                        messageParts.add(messagePart);
+                        startIndex = endIndex;
+                }
+
+                return messageParts;
+        }
+
+        /**
+         * Gửi tin nhắn, tự động chia thành nhiều tin nhắn nếu quá dài
+         *
+         * @param senderId       ID người gửi
+         * @param conversationId ID cuộc trò chuyện
+         * @param content        Nội dung tin nhắn
+         * @param messageType    Loại tin nhắn
+         * @return List<MessageDto> Danh sách các tin nhắn đã được gửi
+         */
+        @Transactional
+        public List<MessageDto> sendMultipartMessage(Long senderId, Long conversationId, String content,
+                        MessageType messageType) {
+                // Kiểm tra quyền truy cập
+                if (!isUserInConversation(conversationId, senderId)) {
+                        throw new AccessDeniedException("Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này");
+                }
+
+                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
+                if (isConversationBlocked(conversationId)) {
+                        throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
+                }
+
+                User sender = userRepository.findById(senderId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người gửi với id: " + senderId));
+
+                Conversation conversation = conversationRepository.findById(conversationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy cuộc trò chuyện với id: " + conversationId));
+
+                // Chia tin nhắn thành nhiều phần nếu cần
+                List<String> messageParts = splitLongMessage(content);
+                List<MessageDto> sentMessages = new ArrayList<>();
+
+                // Gửi từng phần tin nhắn
+                for (String part : messageParts) {
+                        Message message = new Message();
+                        message.setSender(sender);
+                        message.setConversation(conversation);
+                        message.setContent(part);
+                        message.setType(messageType);
+                        message.setCreatedAt(LocalDateTime.now());
+
+                        Message savedMessage = messageRepository.save(message);
+                        MessageDto messageDto = mapToMessageDto(savedMessage);
+                        sentMessages.add(messageDto);
+
+                        // Gửi thông báo realtime cho từng tin nhắn
+                        messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, messageDto);
+
+                        // Thêm delay nhỏ giữa các tin nhắn để đảm bảo thứ tự
+                        try {
+                                Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                        }
+                }
+
+                return sentMessages;
         }
 
 }

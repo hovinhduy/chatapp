@@ -227,7 +227,7 @@ public class ConversationController {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
         })
         @PostMapping("/{conversationId}/messages")
-        public ResponseEntity<ApiResponse<MessageDto>> sendMessage(
+        public ResponseEntity<ApiResponse<List<MessageDto>>> sendMessage(
                         @Parameter(description = "Conversation ID", required = true) @PathVariable Long conversationId,
                         @Parameter(description = "Message details", required = true) @RequestBody MessageDto messageDto,
                         @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
@@ -236,72 +236,75 @@ public class ConversationController {
 
                 messageDto.setConversationId(conversationId);
 
-                if (!conversationService.isUserInConversation(conversationId, senderId)) {
+                try {
+                        // Sử dụng phương thức mới để gửi tin nhắn (có thể chia thành nhiều phần)
+                        List<MessageDto> sentMessages = conversationService.sendMultipartMessage(
+                                        senderId,
+                                        conversationId,
+                                        messageDto.getContent(),
+                                        MessageType.TEXT);
+
+                        String successMessage = sentMessages.size() == 1
+                                        ? "Gửi tin nhắn thành công"
+                                        : String.format("Tin nhắn dài đã được chia thành %d tin nhắn và gửi thành công",
+                                                        sentMessages.size());
+
+                        return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
+                                        .success(true)
+                                        .message(successMessage)
+                                        .payload(sentMessages)
+                                        .build());
+
+                } catch (AccessDeniedException e) {
                         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                        .body(ApiResponse.<MessageDto>builder()
+                                        .body(ApiResponse.<List<MessageDto>>builder()
                                                         .success(false)
-                                                        .message("Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này")
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (ResourceNotFoundException e) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi gửi tin nhắn: " + e.getMessage())
                                                         .build());
                 }
-
-                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
-                if (conversationService.isConversationBlocked(conversationId)) {
-                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                                        .body(ApiResponse.<MessageDto>builder()
-                                                        .success(false)
-                                                        .message("Tin nhắn đã bị chặn trong cuộc trò chuyện này")
-                                                        .build());
-                }
-
-                Message message = new Message();
-                message.setSender(userRepository.findById(senderId).orElseThrow());
-                message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                message.setContent(messageDto.getContent());
-                message.setType(MessageType.TEXT);
-                message.setCreatedAt(LocalDateTime.now());
-
-                Message savedMessage = messageRepository.save(message);
-                MessageDto savedMessageDto = conversationService.mapToMessageDto(savedMessage);
-                messagingTemplate.convertAndSend("/queue/conversation/" + conversationId, savedMessageDto);
-
-                return ResponseEntity.ok(ApiResponse.<MessageDto>builder()
-                                .success(true)
-                                .message("Gửi tin nhắn thành công")
-                                .payload(savedMessageDto)
-                                .build());
         }
 
         @Operation(summary = "Xử lý tin nhắn WebSocket", description = "Xử lý tin nhắn WebSocket gửi đến trong một cuộc trò chuyện")
         @MessageMapping("/conversation/{conversationId}")
         @SendTo("/queue/conversation/{conversationId}")
-        public MessageDto handleMessage(
+        public List<MessageDto> handleMessage(
                         @Parameter(description = "Conversation ID", required = true) @DestinationVariable Long conversationId,
                         @Parameter(description = "Message details", required = true) MessageDto messageDto,
                         @Parameter(hidden = true) Principal principal) {
                 UserDto userDto = userService.getUserByPhone(principal.getName());
-                User sender = userRepository.findById(userDto.getUserId()).orElseThrow();
+                Long senderId = userDto.getUserId();
 
                 messageDto.setConversationId(conversationId);
 
-                if (!conversationService.isUserInConversation(conversationId, sender.getUserId())) {
-                        throw new AccessDeniedException("Bạn không phải là thành viên của cuộc trò chuyện này");
+                try {
+                        // Sử dụng phương thức mới để gửi tin nhắn (có thể chia thành nhiều phần)
+                        List<MessageDto> sentMessages = conversationService.sendMultipartMessage(
+                                        senderId,
+                                        conversationId,
+                                        messageDto.getContent(),
+                                        MessageType.TEXT);
+
+                        return sentMessages;
+
+                } catch (AccessDeniedException e) {
+                        throw new AccessDeniedException(e.getMessage());
+                } catch (ResourceNotFoundException e) {
+                        throw new ResourceNotFoundException(e.getMessage());
+                } catch (Exception e) {
+                        throw new RuntimeException("Lỗi khi gửi tin nhắn: " + e.getMessage());
                 }
-
-                // Kiểm tra nếu cuộc trò chuyện đã bị chặn
-                if (conversationService.isConversationBlocked(conversationId)) {
-                        throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
-                }
-
-                Message message = new Message();
-                message.setSender(sender);
-                message.setConversation(conversationRepository.findById(conversationId).orElseThrow());
-                message.setContent(messageDto.getContent());
-                message.setType(MessageType.TEXT);
-                message.setCreatedAt(LocalDateTime.now());
-
-                Message savedMessage = messageRepository.save(message);
-
-                return conversationService.mapToMessageDto(savedMessage);
         }
 
         @Operation(summary = "Thu hồi tin nhắn", description = "Thu hồi tin nhắn trong vòng 1 ngày, chỉ người gửi mới được thu hồi")
