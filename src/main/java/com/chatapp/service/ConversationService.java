@@ -864,4 +864,92 @@ public class ConversationService {
                                 .collect(Collectors.toList());
         }
 
+        /**
+         * Chuyển tiếp nhiều tin nhắn sang cuộc trò chuyện khác
+         *
+         * @param messageIds           Danh sách ID tin nhắn cần chuyển tiếp
+         * @param targetConversationId ID cuộc trò chuyện đích
+         * @param senderId             ID người gửi
+         * @param additionalMessage    Tin nhắn kèm theo (tùy chọn)
+         * @return List<MessageDto> Danh sách tin nhắn đã được chuyển tiếp
+         * @throws ResourceNotFoundException Nếu không tìm thấy tin nhắn hoặc cuộc trò
+         *                                   chuyện
+         * @throws AccessDeniedException     Nếu không có quyền chuyển tiếp
+         */
+        @Transactional
+        public List<MessageDto> forwardMultipleMessages(List<Long> messageIds, Long targetConversationId,
+                        Long senderId) {
+                // Kiểm tra quyền truy cập cuộc trò chuyện đích
+                if (!isUserInConversation(targetConversationId, senderId)) {
+                        throw new AccessDeniedException(
+                                        "Bạn không có quyền chuyển tiếp tin nhắn đến cuộc trò chuyện này");
+                }
+
+                // Kiểm tra cuộc trò chuyện đích có bị chặn không
+                if (isConversationBlocked(targetConversationId)) {
+                        throw new AccessDeniedException("Tin nhắn đã bị chặn trong cuộc trò chuyện này");
+                }
+
+                User sender = userRepository.findById(senderId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người gửi với id: " + senderId));
+
+                Conversation targetConversation = conversationRepository.findById(targetConversationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy cuộc trò chuyện đích với id: " + targetConversationId));
+
+                List<MessageDto> forwardedMessages = new ArrayList<>();
+
+
+
+                // Chuyển tiếp từng tin nhắn theo thứ tự
+                for (Long messageId : messageIds) {
+                        Message originalMessage = messageRepository.findById(messageId)
+                                        .orElse(null);
+
+                        if (originalMessage == null) {
+                                // Bỏ qua tin nhắn không tồn tại và tiếp tục xử lý các tin nhắn khác
+                                continue;
+                        }
+
+                        // Kiểm tra quyền truy cập tin nhắn gốc
+                        if (originalMessage.getConversation() != null &&
+                                        !isUserInConversation(originalMessage.getConversation().getId(), senderId)) {
+                                // Bỏ qua tin nhắn không có quyền truy cập
+                                continue;
+                        }
+
+                        // Tạo tin nhắn mới
+                        Message forwardedMessage = new Message();
+                        forwardedMessage.setSender(sender);
+                        forwardedMessage.setConversation(targetConversation);
+
+                        // Thêm prefix để chỉ ra đây là tin nhắn được chuyển tiếp
+                        String forwardedContent = originalMessage.getContent();
+                        forwardedMessage.setContent(forwardedContent);
+                        forwardedMessage.setType(originalMessage.getType());
+                        forwardedMessage.setCreatedAt(LocalDateTime.now());
+
+                        // Xử lý attachments nếu có
+                        if (!originalMessage.getAttachments().isEmpty()) {
+                                // Copy attachments từ tin nhắn gốc
+                                originalMessage.getAttachments().forEach(attachment -> {
+                                        // Tạo attachment mới với cùng thông tin
+                                        // Lưu ý: Trong thực tế có thể cần copy file vật lý
+                                        forwardedMessage.getAttachments().add(attachment);
+                                });
+                        }
+
+                        Message savedForwardedMessage = messageRepository.save(forwardedMessage);
+                        MessageDto forwardedMessageDto = mapToMessageDto(savedForwardedMessage);
+                        forwardedMessages.add(forwardedMessageDto);
+
+                        // Gửi thông báo realtime
+                        messagingTemplate.convertAndSend("/queue/conversation/" + targetConversationId,
+                                        forwardedMessageDto);
+                }
+
+                return forwardedMessages;
+        }
+
 }

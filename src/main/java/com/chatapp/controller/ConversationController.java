@@ -48,6 +48,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.chatapp.dto.response.BlockedUserResponse;
+import com.chatapp.dto.request.ForwardMessagesRequest;
+import com.chatapp.exception.ResourceNotFoundException;
 
 @RestController
 @RequestMapping("/api/conversations")
@@ -768,6 +770,100 @@ public class ConversationController {
                                 .message("Lấy danh sách user bị chặn thành công")
                                 .payload(blockedUsers)
                                 .build());
+        }
+
+        @Operation(summary = "Chuyển tiếp nhiều tin nhắn", description = "Chuyển tiếp nhiều tin nhắn cùng lúc sang cuộc trò chuyện khác")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chuyển tiếp tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Danh sách tin nhắn không hợp lệ"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền chuyển tiếp tin nhắn"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện đích")
+        })
+        @PostMapping("/messages/forward-multiple/{conversationId}")
+        public ResponseEntity<ApiResponse<List<MessageDto>>> forwardMultipleMessages(
+                        @Parameter(description = "ID cuộc trò chuyện đích", required = true) @PathVariable Long conversationId,
+                        @Parameter(description = "Danh sách ID tin nhắn và tin nhắn kèm theo", required = true) @RequestBody ForwardMessagesRequest request,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                // Kiểm tra danh sách tin nhắn không được rỗng
+                if (request.getMessageIds() == null || request.getMessageIds().isEmpty()) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Danh sách tin nhắn không được rỗng")
+                                                        .build());
+                }
+
+                // Giới hạn số lượng tin nhắn có thể chuyển tiếp cùng lúc
+                if (request.getMessageIds().size() > 50) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Không thể chuyển tiếp quá 50 tin nhắn cùng lúc")
+                                                        .build());
+                }
+
+                UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+                Long senderId = userDto.getUserId();
+
+                try {
+                        List<MessageDto> forwardedMessages = conversationService.forwardMultipleMessages(
+                                        request.getMessageIds(), conversationId, senderId
+                                        );
+
+                        String message = forwardedMessages.size() == 1
+                                        ? "Chuyển tiếp 1 tin nhắn thành công"
+                                        : String.format("Chuyển tiếp %d tin nhắn thành công", forwardedMessages.size());
+
+                        return ResponseEntity.ok(ApiResponse.<List<MessageDto>>builder()
+                                        .success(true)
+                                        .message(message)
+                                        .payload(forwardedMessages)
+                                        .build());
+
+                } catch (AccessDeniedException e) {
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (ResourceNotFoundException e) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<List<MessageDto>>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi chuyển tiếp tin nhắn: " + e.getMessage())
+                                                        .build());
+                }
+        }
+
+        // WebSocket chuyển tiếp nhiều tin nhắn realtime
+        @MessageMapping("/conversation/{conversationId}/forward-multiple")
+        @SendTo("/queue/conversation/{conversationId}")
+        public List<MessageDto> forwardMultipleMessagesWebSocket(
+                        @DestinationVariable Long conversationId,
+                        ForwardMessagesRequest request,
+                        Principal principal) {
+
+                // Kiểm tra danh sách tin nhắn
+                if (request.getMessageIds() == null || request.getMessageIds().isEmpty()) {
+                        throw new IllegalArgumentException("Danh sách tin nhắn không được rỗng");
+                }
+
+                if (request.getMessageIds().size() > 50) {
+                        throw new IllegalArgumentException("Không thể chuyển tiếp quá 50 tin nhắn cùng lúc");
+                }
+
+                UserDto userDto = userService.getUserByPhone(principal.getName());
+                Long senderId = userDto.getUserId();
+
+                return conversationService.forwardMultipleMessages(
+                                request.getMessageIds(), conversationId, senderId);
         }
 
         public static class ConversationRequest {

@@ -15,4 +15,8 @@ public class WebController {
     public String test() {
         return "test.html";
     }
+    @GetMapping("/")
+    public String index() {
+        return "index.html";
+    }
 }

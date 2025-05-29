@@ -39,7 +39,7 @@ public class Message {
     @JsonBackReference(value = "group-messages")
     private Group group;
 
-    @Column(nullable = false)
+    @Column(nullable = false , length = 2048)
     private String content;
 
     @Enumerated(EnumType.STRING)
