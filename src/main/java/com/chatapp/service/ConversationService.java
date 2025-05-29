@@ -74,7 +74,7 @@ public class ConversationService {
 
                 List<Conversation> conversations = conversationRepository.findByParticipantId(userId);
                 return conversations.stream()
-                                .map(this::mapToDto)
+                                .map(conversation -> mapToDto(conversation, userId))
                                 .collect(Collectors.toList());
         }
 
@@ -118,7 +118,7 @@ public class ConversationService {
                         conversationUserRepository.save(conversationUser);
                 }
 
-                return mapToDto(savedConversation);
+                return mapToDto(savedConversation, creator.getUserId());
         }
 
         @Transactional
@@ -137,7 +137,7 @@ public class ConversationService {
                                 userId2);
 
                 if (existingConversation.isPresent()) {
-                        return mapToDto(existingConversation.get());
+                        return mapToDto(existingConversation.get(), user1.getUserId());
                 }
 
                 // Tạo cuộc trò chuyện mới
@@ -158,7 +158,7 @@ public class ConversationService {
                 conversationUser2.setUser(user2);
                 conversationUserRepository.save(conversationUser2);
 
-                return mapToDto(savedConversation);
+                return mapToDto(savedConversation, user1.getUserId());
         }
 
         public List<MessageDto> getMessagesByConversationId(Long conversationId, Long userId) {
@@ -221,11 +221,15 @@ public class ConversationService {
                 return PageResponse.of(messageDtosPage);
         }
 
-        private ConversationDto mapToDto(Conversation conversation) {
+        private ConversationDto mapToDto(Conversation conversation, Long userId) {
                 ConversationDto dto = new ConversationDto();
                 dto.setId(conversation.getId());
                 dto.setType(conversation.getType());
                 dto.setCreatedAt(conversation.getCreatedAt());
+
+                // Thêm thông tin trạng thái chặn
+                dto.setIsBlocked(isConversationBlocked(conversation.getId()));
+                dto.setIsBlockedByMe(isBlockedByUser(conversation.getId(), userId));
 
                 // Xử lý khác nhau tùy theo loại cuộc trò chuyện
                 if (conversation.getType() == ConversationType.ONE_TO_ONE) {
@@ -338,6 +342,35 @@ public class ConversationService {
 
         public boolean isBlockedByUser(Long conversationId, Long userId) {
                 return conversationBlockRepository.existsByConversation_IdAndUser_UserId(conversationId, userId);
+        }
+
+        /**
+         * Tìm kiếm cuộc trò chuyện theo ID và trả về ConversationDto
+         *
+         * @param conversationId ID của cuộc trò chuyện cần tìm
+         * @param userId         ID của người dùng yêu cầu (để kiểm tra quyền truy cập
+         *                       và thông tin chặn)
+         * @return ConversationDto Thông tin cuộc trò chuyện
+         * @throws ResourceNotFoundException Nếu không tìm thấy cuộc trò chuyện
+         * @throws AccessDeniedException     Nếu người dùng không có quyền truy cập cuộc
+         *                                   trò chuyện
+         */
+        public ConversationDto findConversationDtoById(Long conversationId, Long userId) {
+                // Kiểm tra cuộc trò chuyện có tồn tại không
+                Conversation conversation = conversationRepository.findById(conversationId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy cuộc trò chuyện với id: " + conversationId));
+
+                // Kiểm tra người dùng có quyền truy cập cuộc trò chuyện không
+                boolean isParticipant = conversationUserRepository.existsByConversationIdAndUserId(conversationId,
+                                userId);
+                if (!isParticipant) {
+                        throw new AccessDeniedException(
+                                        "Bạn không có quyền truy cập cuộc trò chuyện này");
+                }
+
+                // Trả về ConversationDto với thông tin đầy đủ
+                return mapToDto(conversation, userId);
         }
 
         /**

@@ -23,4 +23,8 @@ public class ConversationDto {
     private Long groupId;
     private String groupName;
     private String groupAvatarUrl;
+
+    // Thông tin trạng thái chặn
+    private Boolean isBlocked; // Cuộc trò chuyện có bị chặn hay không (bởi bất kỳ ai)
+    private Boolean isBlockedByMe; // Tôi có chặn cuộc trò chuyện này hay không
 }

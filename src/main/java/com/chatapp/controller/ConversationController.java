@@ -97,6 +97,25 @@ public class ConversationController {
                                 .build());
         }
 
+        @Operation(summary = "Lấy thông tin cuộc trò chuyện theo ID", description = "Lấy thông tin chi tiết của một cuộc trò chuyện bằng ID")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin cuộc trò chuyện thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền truy cập cuộc trò chuyện này"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy cuộc trò chuyện")
+        })
+        @GetMapping("/{conversationId}")
+        public ResponseEntity<ApiResponse<ConversationDto>> getConversationById(
+                        @Parameter(description = "ID cuộc trò chuyện", required = true) @PathVariable Long conversationId,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                ConversationDto conversation = conversationService.findConversationDtoById(conversationId, userId);
+                return ResponseEntity.ok(ApiResponse.<ConversationDto>builder()
+                                .success(true)
+                                .message("Lấy thông tin cuộc trò chuyện thành công")
+                                .payload(conversation)
+                                .build());
+        }
+
         @Operation(summary = "Tạo cuộc trò chuyện", description = "Tạo mới một cuộc trò chuyện với nhiều thành viên")
         @ApiResponses(value = {
                         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo cuộc trò chuyện thành công"),
