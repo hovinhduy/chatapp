@@ -900,8 +900,6 @@ public class ConversationService {
 
                 List<MessageDto> forwardedMessages = new ArrayList<>();
 
-
-
                 // Chuyển tiếp từng tin nhắn theo thứ tự
                 for (Long messageId : messageIds) {
                         Message originalMessage = messageRepository.findById(messageId)
@@ -950,6 +948,76 @@ public class ConversationService {
                 }
 
                 return forwardedMessages;
+        }
+
+        /**
+         * Xóa nhiều tin nhắn cùng lúc cho người dùng cụ thể (chỉ ẩn tin nhắn khỏi người
+         * dùng đó)
+         *
+         * @param messageIds Danh sách ID tin nhắn cần xóa
+         * @param userId     ID người dùng thực hiện xóa
+         * @return int Số lượng tin nhắn đã xóa thành công
+         * @throws IllegalArgumentException  Nếu danh sách tin nhắn không hợp lệ
+         * @throws ResourceNotFoundException Nếu không tìm thấy người dùng
+         */
+        @Transactional
+        public int deleteMultipleMessagesForUser(List<Long> messageIds, Long userId) {
+                // Kiểm tra danh sách tin nhắn không được rỗng
+                if (messageIds == null || messageIds.isEmpty()) {
+                        throw new IllegalArgumentException("Danh sách tin nhắn không được rỗng");
+                }
+
+                // Giới hạn số lượng tin nhắn có thể xóa cùng lúc
+                if (messageIds.size() > 50) {
+                        throw new IllegalArgumentException("Không thể xóa quá 50 tin nhắn cùng lúc");
+                }
+
+                // Kiểm tra người dùng có tồn tại
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy người dùng với id: " + userId));
+
+                int deletedCount = 0;
+
+                // Xử lý từng tin nhắn
+                for (Long messageId : messageIds) {
+                        try {
+                                Message message = messageRepository.findById(messageId).orElse(null);
+
+                                if (message == null) {
+                                        // Bỏ qua tin nhắn không tồn tại
+                                        continue;
+                                }
+
+                                // Kiểm tra quyền truy cập tin nhắn
+                                // Người dùng phải là thành viên của cuộc trò chuyện chứa tin nhắn này
+                                if (message.getConversation() != null &&
+                                                !isUserInConversation(message.getConversation().getId(), userId)) {
+                                        // Bỏ qua tin nhắn không có quyền truy cập
+                                        continue;
+                                }
+
+                                // Kiểm tra xem tin nhắn đã được xóa bởi người dùng này chưa
+                                Optional<DeletedMessage> existingDeletedMessage = deletedMessageRepository
+                                                .findByUserAndMessage(user, message);
+
+                                if (existingDeletedMessage.isEmpty()) {
+                                        // Tạo bản ghi xóa tin nhắn mới
+                                        DeletedMessage deletedMessage = new DeletedMessage();
+                                        deletedMessage.setUser(user);
+                                        deletedMessage.setMessage(message);
+                                        deletedMessageRepository.save(deletedMessage);
+
+                                        deletedCount++;
+                                }
+
+                        } catch (Exception e) {
+                                // Log lỗi và tiếp tục xử lý các tin nhắn khác
+                                System.err.println("Lỗi khi xóa tin nhắn ID " + messageId + ": " + e.getMessage());
+                        }
+                }
+
+                return deletedCount;
         }
 
 }

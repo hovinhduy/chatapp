@@ -49,6 +49,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.chatapp.dto.response.BlockedUserResponse;
 import com.chatapp.dto.request.ForwardMessagesRequest;
+import com.chatapp.dto.request.DeleteMultipleMessagesRequest;
 import com.chatapp.exception.ResourceNotFoundException;
 
 @RestController
@@ -411,6 +412,57 @@ public class ConversationController {
                                 .success(true)
                                 .message("Xóa tin nhắn thành công")
                                 .build());
+        }
+
+        @Operation(summary = "Xóa nhiều tin nhắn phía tôi", description = "Xóa nhiều tin nhắn cùng lúc, chỉ user hiện tại không nhìn thấy các tin nhắn này nữa")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Xóa tin nhắn thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Danh sách tin nhắn không hợp lệ"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
+        })
+        @DeleteMapping("/messages/multiple")
+        public ResponseEntity<ApiResponse<Void>> deleteMultipleMessagesForMe(
+                        @Parameter(description = "Danh sách ID tin nhắn cần xóa", required = true) @RequestBody DeleteMultipleMessagesRequest request,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+
+                try {
+                        UserDto userDto = userService.getUserByPhone(userDetails.getUsername());
+                        Long userId = userDto.getUserId();
+
+                        int deletedCount = conversationService.deleteMultipleMessagesForUser(request.getMessageIds(),
+                                        userId);
+
+                        String message = deletedCount == 0
+                                        ? "Không có tin nhắn nào được xóa"
+                                        : deletedCount == 1
+                                                        ? "Xóa 1 tin nhắn thành công"
+                                                        : String.format("Xóa %d tin nhắn thành công", deletedCount);
+
+                        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                                        .success(true)
+                                        .message(message)
+                                        .data("deletedCount", deletedCount)
+                                        .build());
+
+                } catch (IllegalArgumentException e) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                        .body(ApiResponse.<Void>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (ResourceNotFoundException e) {
+                        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                        .body(ApiResponse.<Void>builder()
+                                                        .success(false)
+                                                        .message(e.getMessage())
+                                                        .build());
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<Void>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi xóa tin nhắn: " + e.getMessage())
+                                                        .build());
+                }
         }
 
         @Operation(summary = "Chuyển tiếp tin nhắn", description = "Chuyển tiếp một tin nhắn sang cuộc trò chuyện khác")
@@ -808,8 +860,7 @@ public class ConversationController {
 
                 try {
                         List<MessageDto> forwardedMessages = conversationService.forwardMultipleMessages(
-                                        request.getMessageIds(), conversationId, senderId
-                                        );
+                                        request.getMessageIds(), conversationId, senderId);
 
                         String message = forwardedMessages.size() == 1
                                         ? "Chuyển tiếp 1 tin nhắn thành công"
