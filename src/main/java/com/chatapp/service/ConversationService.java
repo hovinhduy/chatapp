@@ -41,7 +41,7 @@ import java.util.ArrayList;
 @Service
 public class ConversationService {
 
-        private static final int MAX_MESSAGE_LENGTH = 2048;
+        private static final int MAX_MESSAGE_LENGTH = 4096;
 
         @Autowired
         private ConversationRepository conversationRepository;
