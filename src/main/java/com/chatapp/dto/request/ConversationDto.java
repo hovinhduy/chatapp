@@ -16,6 +16,7 @@ import java.util.List;
 public class ConversationDto {
     private Long id;
     private ConversationType type;
+    private Boolean isAiConversation;
     private List<UserDto> participants;
     private LocalDateTime createdAt;
 

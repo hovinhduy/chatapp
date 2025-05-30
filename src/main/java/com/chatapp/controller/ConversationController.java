@@ -7,6 +7,7 @@ import com.chatapp.model.Message;
 import com.chatapp.model.User;
 import com.chatapp.service.ConversationService;
 import com.chatapp.service.UserService;
+import com.chatapp.service.AiConversationService;
 import com.chatapp.dto.response.ApiResponse;
 import com.chatapp.dto.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,6 +64,9 @@ public class ConversationController {
 
         @Autowired
         private UserService userService;
+
+        @Autowired
+        private AiConversationService aiConversationService;
 
         @Autowired
         private UserRepository userRepository;
@@ -244,6 +248,15 @@ public class ConversationController {
                                         messageDto.getContent(),
                                         MessageType.TEXT);
 
+                        // Kiểm tra và xử lý AI auto reply nếu đây là AI conversation
+                        if (aiConversationService.isAiConversation(conversationId)) {
+                                // Gọi AI auto reply bất đồng bộ để không làm chậm response
+                                new Thread(() -> {
+                                        aiConversationService.handleAutoReply(conversationId, messageDto.getContent(),
+                                                        senderId);
+                                }).start();
+                        }
+
                         String successMessage = sentMessages.size() == 1
                                         ? "Gửi tin nhắn thành công"
                                         : String.format("Tin nhắn dài đã được chia thành %d tin nhắn và gửi thành công",
@@ -295,6 +308,15 @@ public class ConversationController {
                                         conversationId,
                                         messageDto.getContent(),
                                         MessageType.TEXT);
+
+                        // Kiểm tra và xử lý AI auto reply nếu đây là AI conversation
+                        if (aiConversationService.isAiConversation(conversationId)) {
+                                // Gọi AI auto reply bất đồng bộ để không làm chậm response
+                                new Thread(() -> {
+                                        aiConversationService.handleAutoReply(conversationId, messageDto.getContent(),
+                                                        senderId);
+                                }).start();
+                        }
 
                         return sentMessages;
 
@@ -918,6 +940,60 @@ public class ConversationController {
 
                 return conversationService.forwardMultipleMessages(
                                 request.getMessageIds(), conversationId, senderId);
+        }
+
+        @Operation(summary = "Tạo cuộc trò chuyện AI", description = "Tạo cuộc trò chuyện với AI Assistant có thể tự động trả lời")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Tạo cuộc trò chuyện AI thành công"),
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không tìm thấy người dùng")
+        })
+        @PostMapping("/ai")
+        public ResponseEntity<ApiResponse<ConversationDto>> createAiConversation(
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                try {
+                        Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                        ConversationDto conversation = aiConversationService.createAiConversation(userId);
+
+                        return ResponseEntity.ok(ApiResponse.<ConversationDto>builder()
+                                        .success(true)
+                                        .message("Tạo cuộc trò chuyện AI thành công")
+                                        .payload(conversation)
+                                        .build());
+
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<ConversationDto>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi tạo cuộc trò chuyện AI: " + e.getMessage())
+                                                        .build());
+                }
+        }
+
+        @Operation(summary = "Lấy danh sách cuộc trò chuyện AI", description = "Lấy tất cả các cuộc trò chuyện AI của người dùng hiện tại")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách cuộc trò chuyện AI thành công")
+        })
+        @GetMapping("/ai")
+        public ResponseEntity<ApiResponse<List<ConversationDto>>> getAiConversations(
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+                try {
+                        Long userId = userService.getUserByPhone(userDetails.getUsername()).getUserId();
+                        List<ConversationDto> conversations = aiConversationService.getAiConversations(userId);
+
+                        return ResponseEntity.ok(ApiResponse.<List<ConversationDto>>builder()
+                                        .success(true)
+                                        .message("Lấy danh sách cuộc trò chuyện AI thành công")
+                                        .payload(conversations)
+                                        .build());
+
+                } catch (Exception e) {
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                        .body(ApiResponse.<List<ConversationDto>>builder()
+                                                        .success(false)
+                                                        .message("Lỗi khi lấy danh sách cuộc trò chuyện AI: "
+                                                                        + e.getMessage())
+                                                        .build());
+                }
         }
 
         public static class ConversationRequest {

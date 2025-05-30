@@ -27,6 +27,9 @@ public class Conversation {
     @Enumerated(EnumType.STRING)
     private ConversationType type;
 
+    @Column(name = "is_ai_conversation", columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private Boolean isAiConversation = false;
+
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL)
     private List<ConversationUser> conversationUsers = new ArrayList<>();
 
@@ -36,4 +39,10 @@ public class Conversation {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    @PrePersist
+    protected void onCreate() {
+        if (isAiConversation == null) {
+            isAiConversation = false;
+        }
+    }
 }

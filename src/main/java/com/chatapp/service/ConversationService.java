@@ -228,6 +228,7 @@ public class ConversationService {
                 ConversationDto dto = new ConversationDto();
                 dto.setId(conversation.getId());
                 dto.setType(conversation.getType());
+                dto.setIsAiConversation(conversation.getIsAiConversation());
                 dto.setCreatedAt(conversation.getCreatedAt());
 
                 // Thêm thông tin trạng thái chặn
@@ -1108,6 +1109,17 @@ public class ConversationService {
                 }
 
                 return sentMessages;
+        }
+
+        /**
+         * Phương thức public để map Conversation thành ConversationDto
+         * 
+         * @param conversation Đối tượng Conversation cần map
+         * @param userId       ID của người dùng để kiểm tra quyền truy cập
+         * @return ConversationDto
+         */
+        public ConversationDto mapToConversationDto(Conversation conversation, Long userId) {
+                return mapToDto(conversation, userId);
         }
 
 }
