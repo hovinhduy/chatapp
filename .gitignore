@@ -62,7 +62,6 @@ test.html
 .dockerignore
 docker-compose.yml
 
-*.md
 *.sql
 
 
